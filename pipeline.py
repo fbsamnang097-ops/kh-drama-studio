@@ -28,6 +28,8 @@ load_dotenv()
 GEMINI_KEY = os.getenv("GEMINI_API_KEY", "")
 TEXT_MODEL = os.getenv("GEMINI_TEXT_MODEL", "")    # empty = auto-detect
 IMAGE_MODEL = os.getenv("GEMINI_IMAGE_MODEL", "")  # empty = auto-detect
+HF_TOKEN = os.getenv("HF_TOKEN", "")  # optional, for the Hugging Face image fallback
+HF_IMAGE_MODEL = os.getenv("HF_IMAGE_MODEL", "black-forest-labs/FLUX.1-schnell")
 VOICE = os.getenv("KH_VOICE", "km-KH-SreymomNeural")  # or km-KH-PisethNeural (male)
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
@@ -142,7 +144,21 @@ def generate_image(prompt: str, out: Path) -> None:
             _bad_image_models.add(model)
             print(f"  image model {model} failed: {str(e)[:160]}")
 
-    # 2) Pollinations (may now require payment / a key)
+    # 2) Hugging Face (only if HF_TOKEN is set). NOTE: free HF accounts get no included
+    #    credits, so this may fail with a "payment/credits" error until credits are added.
+    if HF_TOKEN:
+        try:
+            from huggingface_hub import InferenceClient  # lazy import: optional dependency
+
+            client = InferenceClient(provider="auto", api_key=HF_TOKEN)
+            image = client.text_to_image(prompt, model=HF_IMAGE_MODEL)
+            image.save(out)
+            print(f"  image from Hugging Face ({HF_IMAGE_MODEL})")
+            return
+        except Exception as e:  # noqa: BLE001
+            print(f"  Hugging Face failed: {str(e)[:200]}")
+
+    # 3) Pollinations (may now require payment / a key)
     try:
         url = (
             "https://image.pollinations.ai/prompt/"
@@ -157,7 +173,7 @@ def generate_image(prompt: str, out: Path) -> None:
     except Exception as e:  # noqa: BLE001
         print(f"  Pollinations failed: {str(e)[:120]}")
 
-    # 3) last resort so the video still gets made: a plain coloured frame (no AI image)
+    # 4) last resort so the video still gets made: a plain coloured frame (no AI image)
     hue = abs(hash(prompt)) % 0xFFFFFF
     subprocess.run(
         ["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi",
