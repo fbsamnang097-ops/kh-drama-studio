@@ -1,7 +1,10 @@
 import json, os, pathlib, asyncio, base64, time, httpx
 from xml.sax.saxutils import escape
 SF = pathlib.Path(__file__).parent / "settings.json"
-def load(): return json.loads(SF.read_text()) if SF.exists() else {}
+def load():
+    d = json.loads(SF.read_text()) if SF.exists() else {}
+    d.update({k[3:].lower(): v for k, v in os.environ.items() if k.startswith("KH_") and v})   # Render env vars
+    return d
 def save(d): SF.write_text(json.dumps(d)); os.chmod(SF, 0o600)
 def masked(d): return {k: ("••••" + v[-4:] if k.startswith("key_") and v else v) for k, v in d.items()}
 
