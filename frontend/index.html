@@ -1,0 +1,29 @@
+<!doctype html><html lang="km"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>KH Drama Studio AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700;800&family=Noto+Sans+Khmer:wght@400;600&family=Noto+Sans+SC&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>body{font-family:'Noto Sans Khmer','Noto Sans SC',sans-serif;color:#f4f1ff;height:100vh;overflow:hidden;
+background:radial-gradient(900px 520px at 0% 0%,rgba(236,72,153,.40),transparent 60%),radial-gradient(900px 600px at 100% 0%,rgba(34,211,238,.30),transparent 60%),radial-gradient(1000px 600px at 50% 115%,rgba(251,191,36,.24),transparent 60%),#0f0a2a}
+.glass{background:rgba(255,255,255,.07);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.14);border-radius:14px}
+.pnl{background:rgba(255,255,255,.07);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.12);border-radius:16px;position:relative}
+.pnl::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;border-radius:16px 16px 0 0;background:var(--g)}
+.pnl-pink{--g:linear-gradient(90deg,#f472b6,#fb923c)}.pnl-violet{--g:linear-gradient(90deg,#8b5cf6,#38bdf8)}.pnl-teal{--g:linear-gradient(90deg,#2dd4bf,#a3e635)}
+.btn,.neon{border-radius:10px;padding:6px 12px;font-weight:600;color:#fff;transition:filter .15s,transform .1s}
+.btn:hover:not(:disabled),.neon:hover{filter:brightness(1.15)}.btn:active:not(:disabled){transform:translateY(1px)}
+.neon,.b-violet{background:linear-gradient(135deg,#8b5cf6,#6366f1);box-shadow:0 0 14px #8b5cf655}
+.b-cyan{background:linear-gradient(135deg,#06b6d4,#3b82f6)}.b-pink{background:linear-gradient(135deg,#ec4899,#a855f7)}
+.b-orange{background:linear-gradient(135deg,#fb923c,#f43f5e)}.b-red{background:linear-gradient(135deg,#ef4444,#be123c)}
+.b-green{background:linear-gradient(135deg,#34d399,#a3e635);color:#052e1b}.b-amber{background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#2a1500}
+.ghost{border:1px solid rgba(255,255,255,.28);border-radius:10px;padding:6px 12px}.ghost:hover{background:rgba(255,255,255,.12)}
+.chip{border-radius:999px;padding:1px 9px;font-size:11px;font-weight:600}
+.chip-Pending{background:rgba(255,255,255,.14);color:#cbd5e1}.chip-Generating{background:#fbbf24;color:#3b2300;animation:pulse 1s infinite}
+.chip-Done{background:#34d399;color:#052e1b}.chip-Error{background:#f43f5e;color:#fff}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px}
+.logo{width:28px;height:28px;border-radius:9px;background:conic-gradient(from 200deg,#f472b6,#fb923c,#fbbf24,#34d399,#22d3ee,#8b5cf6,#f472b6)}
+.step{padding:2px 12px;border-radius:999px;font-size:12px;font-weight:600;background:rgba(255,255,255,.10);color:#cbd5e1}.step.on{color:#1a0b2e;background:var(--c)}
+.row-on{background:linear-gradient(90deg,rgba(244,114,182,.30),rgba(99,102,241,.12))}
+input,textarea,select{background:transparent;outline:none}input:focus,textarea:focus{background:rgba(255,255,255,.12)}select option{background:#1a1245}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #fde68a;outline-offset:2px}
+@media(prefers-reduced-motion:reduce){.chip-Generating{animation:none}}
+</style></head>
+<body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body></html>
