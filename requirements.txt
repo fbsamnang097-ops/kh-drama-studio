@@ -1,4 +1,7 @@
-gradio
+fastapi
+uvicorn[standard]
+python-multipart
+httpx
 edge-tts
 requests
 python-dotenv
