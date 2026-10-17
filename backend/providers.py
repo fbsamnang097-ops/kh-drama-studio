@@ -1,3 +1,4 @@
+from .utils import open_safe
 import json, os, pathlib, asyncio, base64, time, httpx
 from xml.sax.saxutils import escape
 SF = pathlib.Path(__file__).parent / "settings.json"
@@ -71,6 +72,8 @@ def _base(cfg, role, p):
     b = cfg.get(f"base_{role}") if p == "custom" else BASES[p]
     if not b: raise KeyError(f"Base URL ({role})")
     return b.rstrip("/")
+
+open_safe = open   # បើក file ធម្មតា
 
 # ---------- Speech-to-Text ----------
 _WM = None
