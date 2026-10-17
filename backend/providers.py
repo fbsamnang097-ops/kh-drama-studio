@@ -79,7 +79,7 @@ def stt(audio_path, cfg):
         _WM = _WM or WhisperModel(model, device="cpu", compute_type="int8")
         segs, _ = _WM.transcribe(str(audio_path), language="zh", vad_filter=True)
         return [{"start": s.start, "end": s.end, "zh": s.text.strip()} for s in segs]
-    with open(audio_path, "rb") as f:   # OpenAI / Groq / custom (OpenAI-compatible)
+    with open_safe(audio_path, "rb") as f:   # OpenAI / Groq / custom (OpenAI-compatible)
         r = httpx.post(f"{_base(cfg, 'stt', 'openai' if p == 'openai' else p)}/audio/transcriptions",
             headers={"Authorization": f"Bearer {_key(cfg, 'stt', p)}"},
             data={"model": model, "language": "zh", "response_format": "verbose_json"}, files={"file": f}, timeout=600)

@@ -17,32 +17,60 @@ def write_track(store, vid, segs, blank_b64):
     lines += [f"file '{blank}'", "duration 1", f"file '{blank}'"]   # concat ត្រូវការបន្ទាត់ចុងក្រោយម្តងទៀត
     name = f"{vid}_subs.txt"; (pathlib.Path(store) / name).write_text("\n".join(lines) + "\n", encoding="utf-8"); return name
 
-def export_args(src, clips, subs_txt, out, q):
-    """ឈ្មោះ file ទាំងអស់ជាឈ្មោះសាមញ្ញ (ដំណើរការក្នុង cwd=storage)"""
+# ---------- លាយសំឡេងតួ + BGM (ducking) ----------
+# ពេលតួនិយាយ → ភ្លេងស្ទើរបាត់; ពេលឈប់និយាយ → ភ្លេង BGM ឡើងមកវិញធម្មតា
+BGM_VOLUME = 0.6      # កម្រិតភ្លេងពេលគ្មានអ្នកនិយាយ (0.0 – 1.0)
+DUCK_RATIO = 20       # ធំ = ភ្លេងបាត់កាន់តែស្ទើរ (8 = លឺស្រាលៗពេលនិយាយ)
+DUCK_THRESHOLD = 0.01 # ទាប = ងាយចាប់សំឡេងតួ
+DUCK_ATTACK = 20      # ms ភ្លេងចុះលឿនប៉ុនណា ពេលតួចាប់និយាយ
+DUCK_RELEASE = 500    # ms ភ្លេងឡើងមកវិញយឺតប៉ុនណា ក្រោយតួឈប់និយាយ
+
+def _mix(n, bgm_idx, pad=False):
+    """លាយក្លីបតួ [a0..a(n-1)] → [voice]; បើមាន BGM → បន្ថយភ្លេងពេលតួនិយាយ (sidechain) → [aout]"""
+    flt = ["".join(f"[a{i}]" for i in range(n)) + f"amix=inputs={n}:normalize=0[voice]"]
+    if bgm_idx is None:
+        flt.append("[voice]anull[aout]"); return flt
+    flt.append("[voice]" + ("apad," if pad else "") + "asplit=2[v1][v2]")
+    flt.append(f"[{bgm_idx}:a]volume={BGM_VOLUME}[bg]")
+    flt.append(f"[bg][v2]sidechaincompress=threshold={DUCK_THRESHOLD}:ratio={DUCK_RATIO}"
+               f":attack={DUCK_ATTACK}:release={DUCK_RELEASE}[duck]")
+    flt.append("[v1][duck]amix=inputs=2:duration=first:normalize=0[aout]")
+    return flt
+
+def export_args(src, clips, subs_txt, out, q, bgm=None):
+    """ឈ្មោះ file ទាំងអស់ជាឈ្មោះសាមញ្ញ (ដំណើរការក្នុង cwd=storage)
+    bgm = ឈ្មោះ file ភ្លេង (ជម្រើស) → លាយជាមួយសំឡេងខ្មែរ ដោយបន្ថយភ្លេងពេលតួនិយាយ"""
     inputs, flt = ["-i", src], []
     for i, s in enumerate(clips):
         inputs += ["-i", pathlib.Path(s["audio"]).name]
         flt.append(f"[{i+1}:a]adelay={int(s['start']*1000)}:all=1[a{i}]")
-    flt.append("".join(f"[a{i}]" for i in range(len(clips))) + f"amix=inputs={len(clips)}:normalize=0[aout]")
+    nxt, bgm_idx = len(clips) + 1, None
+    if bgm:
+        inputs += ["-stream_loop", "-1", "-i", pathlib.Path(bgm).name]; bgm_idx = nxt; nxt += 1
+    flt += _mix(len(clips), bgm_idx, pad=bool(bgm))
     if subs_txt:   # បញ្ចូលអក្សរក្នុងវីដេអូ
         inputs += ["-f", "concat", "-safe", "0", "-i", subs_txt]
-        flt.append(f"[0:v][{len(clips)+1}:v]overlay=x=0:y=H-h:eof_action=pass[vout]"); vmap = "[vout]"
+        flt.append(f"[0:v][{nxt}:v]overlay=x=0:y=H-h:eof_action=pass[vout]"); vmap = "[vout]"
         venc = ["-c:v", "libx264", "-preset", q["preset"], "-crf", str(q["crf"]), "-pix_fmt", "yuv420p"]
     else:          # បិទអក្សរ → មិន re-encode វីដេអូ (លឿន)
         vmap, venc = "0:v", ["-c:v", "copy"]
     return [*inputs, "-filter_complex", ";".join(flt), "-map", vmap, "-map", "[aout]", *venc,
-            "-c:a", "aac", "-b:a", q["abr"], "-movflags", "+faststart", out]
+            "-c:a", "aac", "-b:a", q["abr"], "-movflags", "+faststart", *(["-shortest"] if bgm else []), out]
 
 # ---------- Export / Import TTS ----------
 AUD = {".mp3", ".wav", ".m4a", ".ogg", ".aac", ".flac"}
 
-def audio_args(clips, out, q):
-    """លាយក្លីបសំឡេងខ្មែរទាំងអស់ តាមពេលវេលា → ឯកសារ MP3 មួយ"""
+def audio_args(clips, out, q, bgm=None):
+    """លាយក្លីបសំឡេងខ្មែរទាំងអស់ តាមពេលវេលា → ឯកសារ MP3 មួយ
+    bgm = ឈ្មោះ file ភ្លេង (ជម្រើស) → លាយជាមួយសំឡេងខ្មែរ ដោយបន្ថយភ្លេងពេលតួនិយាយ"""
     inputs, flt = [], []
     for i, s in enumerate(clips):
         inputs += ["-i", pathlib.Path(s["audio"]).name]
         flt.append(f"[{i}:a]adelay={int(s['start']*1000)}:all=1[a{i}]")
-    flt.append("".join(f"[a{i}]" for i in range(len(clips))) + f"amix=inputs={len(clips)}:normalize=0[aout]")
+    bgm_idx = None
+    if bgm:
+        inputs += ["-stream_loop", "-1", "-i", pathlib.Path(bgm).name]; bgm_idx = len(clips)
+    flt += _mix(len(clips), bgm_idx)
     return [*inputs, "-filter_complex", ";".join(flt), "-map", "[aout]", "-c:a", "libmp3lame", "-b:a", q["abr"], out]
 
 def build_zip(store, clips, out_path):
@@ -51,7 +79,7 @@ def build_zip(store, clips, out_path):
         for i, s in enumerate(clips):
             src = pathlib.Path(store) / pathlib.Path(s["audio"]).name
             if src.exists(): z.write(src, f"{int(s.get('n', i + 1)):03}{src.suffix}")
-        z.writestr("segments.json", json.dumps([{k: s.get(k) for k in ("n", "start", "end", "zh", "km", "char")} for s in clips], ensure_ascii=False, indent=2))
+        z.writestr("segments.json", json.dumps([{k: s.get(k) for k in ("n", "start", "end", "zh", "km", "char")} for s in clips],ensure_ascii=False, indent=2))
 
 def _keep(store, name, data, pos):
     ext = pathlib.Path(name).suffix.lower()

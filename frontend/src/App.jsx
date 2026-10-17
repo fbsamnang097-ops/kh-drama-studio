@@ -67,6 +67,7 @@ export default function App() {
   const [showSub, setShowSub] = useState(true);       // បង្ហាញ/បិទ អក្សរលើវីដេអូ (និង Export)
   const [ar, setAr] = useState(9 / 16);
   const [vs, setVs] = useState({ w: 1080, h: 1920 });   // ទំហំវីដេអូពិត (px)                // aspect ratio ពិតរបស់វីដេអូ
+  const [bgm, setBgm] = useState("");
   const [tier, setTier] = useState("standard");        // standard | premium
   useEffect(() => { api("/api/settings").then((s) => setTier(s.tier || "standard")).catch(() => {}); }, [showSet]);
   const switchTier = async (k) => { const prev = tier; setTier(k); try { await api("/api/settings", { tier: k }); } catch (e) { setTier(prev); alert(e.message); } };
@@ -132,7 +133,7 @@ export default function App() {
     }));
   });
   const exportTts = runWith("កំពុង Export TTS...", async (kind) => {
-    const r = await api("/api/tts_export", { kind, segments: segs.map((s, i) => ({ ...s, n: i + 1 })).filter((s) => s.audio) });
+    const r = await api("/api/tts_export", { kind, segments: segs.map((s, i) => ({ ...s, n: i + 1 })).filter((s) => s.audio), bgm });
     const a = document.createElement("a"); a.href = r.url; a.download = ""; a.click();
   });
   const importTts = runWith("កំពុង Import សំឡេង...", async (files) => {
@@ -157,8 +158,40 @@ export default function App() {
   const exportV = run("កំពុង Export...", async () => {
     let pngs = [], blank = "";
     if (showSub) ({ pngs, blank } = await renderSubs(segs, vs.w, vs.h));
-    const r = await api("/api/export", { id: video.id, segments: segs.map((s, i) => ({ ...s, png: pngs[i] || "" })), subs: showSub, blank });
+    const r = await api("/api/export", { id: video.id, segments: segs.map((s, i) => ({ ...s, png: pngs[i] || "" })), subs: showSub, blank, bgm });
     setExported(true); window.open(r.url);
+  });
+  const [bgmVol, setBgmVol] = useState(0.5);
+  const bgmAud = useRef(null);
+  useEffect(() => {   // Preview BGM តាមវីដេអូ (play / pause / seek)
+    const v = vref.current;
+    if (!bgm || !v) return;
+    const wasMuted = v.muted; v.muted = true;   // ឮតែ BGM
+    const a = new Audio(bgm); a.loop = true; a.volume = bgmVol; bgmAud.current = a;
+    const sync = () => { if (a.duration) a.currentTime = v.currentTime % a.duration; };
+    const play = () => { sync(); a.play().catch(() => {}); };
+    const pause = () => a.pause();
+    v.addEventListener("play", play); v.addEventListener("pause", pause);
+    v.addEventListener("seeked", sync); v.addEventListener("ended", pause);
+    if (!v.paused) play();
+    return () => {
+      v.removeEventListener("play", play); v.removeEventListener("pause", pause);
+      v.removeEventListener("seeked", sync); v.removeEventListener("ended", pause);
+      a.pause(); bgmAud.current = null; v.muted = wasMuted;
+    };
+  }, [bgm, video]);
+  useEffect(() => { if (bgmAud.current) bgmAud.current.volume = bgmVol; }, [bgmVol]);
+  const uploadBgm = runWith("កំពុង Upload BGM...", async (f) => {
+    const fd = new FormData(); fd.append("file", f);
+    const r = await api("/api/bgm?id=" + video.id, fd, true);
+    if (r.url) { setBgm(r.url + "?v=" + Date.now()); return; }
+    for (;;) {   // រង់ចាំ Demucs ដកសំដី (background job)
+      await new Promise((ok) => setTimeout(ok, 2000));
+      const j = await api("/api/bgm_status?id=" + video.id);
+      if (j.state === "done") { setBgm(j.url + "?v=" + Date.now()); return; }
+      if (j.state === "error") throw new Error(j.error || "BGM បរាជ័យ");
+      if (j.state === "none") throw new Error("Job បាត់ (server restart?) សូម upload ម្តងទៀត");
+    }
   });
   const findReplace = () => { const a = prompt("ស្វែងរក:"); if (!a) return; const b = prompt("ជំនួសដោយ:") ?? ""; setSegs((s) => s.map((x) => ({ ...x, km: x.km.split(a).join(b) }))); };
   const addText = () => setSegs((s) => [...s, { id: Date.now(), start: t, end: t + 2, zh: "", km: "", char: "男主", status: "Pending", audio: "" }].sort((a, b) => a.start - b.start));
@@ -207,6 +240,14 @@ export default function App() {
           <IOGroup label="STT" color="#fb923c" formats={[["srt", "SRT"], ["txt", "TXT"], ["json", "JSON"]]} accept=".srt,.json" disabled={!segs.length} busy={busy} onExport={(f) => exportText("zh", f)} onImport={importStt} />
           <IOGroup label="Translate" color="#fbbf24" formats={[["srt", "SRT"], ["txt", "TXT"], ["json", "JSON"]]} accept=".srt,.txt,.json" disabled={!segs.some((s) => s.km)} busy={busy} onExport={(f) => exportText("km", f)} onImport={importTr} />
           <IOGroup label="TTS" color="#34d399" formats={[["mp3", "MP3 track"], ["zip", "ZIP clips"]]} accept=".zip,.mp3,.wav,.m4a,.ogg,.aac,.flac,audio/*" multiple disabled={!segs.some((s) => s.audio)} busy={busy} onExport={exportTts} onImport={importTts} />
+          <>
+            <label className="btn btn-block text-sm cursor-pointer" style={{ background: "#fbbf24", color: "#000" }}>
+              🎵 {bgm ? "Change BGM" : "Upload BGM"}
+              <input type="file" hidden accept="audio/*,video/*,.mp3,.wav,.m4a,.ogg,.aac,.flac,.mp4,.mov,.mkv,.webm" disabled={!video} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) uploadBgm(f); }} />
+            </label>
+            {bgm && <button className="btn ghost text-xs" onClick={() => setBgm("")}>✕ Remove BGM</button>}
+            {bgm && <label className="flex items-center gap-2 text-xs">🔊 BGM<input type="range" min="0" max="1" step="0.05" value={bgmVol} onChange={(e) => setBgmVol(+e.target.value)} className="flex-1" /></label>}
+          </>
         </div>
         <div className="overflow-auto flex-1 text-sm">
           <table className="w-full table-fixed"><colgroup>{[30, 34, 62, 62, null, null, 100, 84].map((w, i) => <col key={i} style={w ? { width: w } : undefined} />)}</colgroup>
@@ -233,7 +274,7 @@ export default function App() {
           <B c="cyan" onClick={translate}>Translate</B><B c="green" onClick={genAudio}>Generate Khmer Audio</B><B c="orange" onClick={exportV}>Export Video</B>
           <span className="ml-auto">Zoom</span><input type="range" min={5} max={80} value={zoom} onChange={(e) => setZoom(+e.target.value)} />
         </div>
-        <Timeline {...{ segs, patch, dur, zoom, t, video, seek: (x) => { if (vref.current) vref.current.currentTime = x; } }} />
+        <Timeline {...{ bgm, segs, patch, dur, zoom, t, video, seek: (x) => { if (vref.current) vref.current.currentTime = x; } }} />
       </section>
       {showSet && <Settings tier={tier} onClose={() => setShowSet(false)} />}
     </div>
@@ -241,19 +282,19 @@ export default function App() {
   );
 }
 
-function Timeline({ segs, patch, dur, zoom, t, video, seek }) {
+function Timeline({ bgm, segs, patch, dur, zoom, t, video, seek }) {
   const cv = useRef(); const W = Math.max(dur * zoom, 600);
   useEffect(() => {  // Waveform ពីសំឡេងវីដេអូ
-    if (!video) return; let dead = false;
+    if (!bgm) { cv.current?.getContext("2d").clearRect(0, 0, W, 50); return; } let dead = false;
     (async () => {
-      const buf = await (await fetch(video.url)).arrayBuffer();
+      const buf = await (await fetch(bgm, { cache: "reload" })).arrayBuffer();
       const a = await new AudioContext().decodeAudioData(buf).catch(() => null); if (!a || dead) return;
       const d = a.getChannelData(0), c = cv.current.getContext("2d"), step = Math.floor(d.length / W) || 1;
       c.clearRect(0, 0, W, 50); const g = c.createLinearGradient(0, 0, W, 0); g.addColorStop(0, "#22d3ee"); g.addColorStop(.5, "#a78bfa"); g.addColorStop(1, "#f472b6"); c.fillStyle = g;
       for (let x = 0; x < W; x++) { let m = 0; for (let j = 0; j < step; j += 40) m = Math.max(m, Math.abs(d[x * step + j] || 0)); c.fillRect(x, 25 - m * 25, 1, m * 50); }
     })();
     return () => { dead = true; };
-  }, [video, W]);
+  }, [bgm, W]);
   const drag = useCallback((e, s, mode) => {   // អូសទម្លាក់ពេលវេលា
     e.stopPropagation(); const x0 = e.clientX, { start, end } = s;
     const mv = (m) => { const d = (m.clientX - x0) / zoom;

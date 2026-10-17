@@ -6,3 +6,16 @@ __pycache__/
 node_modules/
 frontend/dist/
 storage/
+__pycache__/
+*.pyc
+*.bak
+*.bak2
+*.good
+*.good[0-9]
+*.broken
+.venv/
+storage/
+node_modules/
+frontend/dist/
+backend/settings.json
+.env

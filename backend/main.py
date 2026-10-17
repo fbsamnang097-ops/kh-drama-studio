@@ -1,4 +1,4 @@
-import subprocess, uuid, pathlib, zipfile
+import subprocess, uuid, pathlib, zipfile, sys, shutil
 from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -56,7 +56,7 @@ def tts(b: Sp):
         return {"url": f"/files/{name}"}
     return guard(run)
 
-class Ex(BaseModel): id: str; segments: list[dict]; subs: bool = True; blank: str = ""   # segments: {start,end,km,audio,png}
+class Ex(BaseModel): id: str; segments: list[dict]; subs: bool = True; blank: str = ""; bgm: str = ""   # segments: {start,end,km,audio,png}
 @app.post("/api/export")
 def export(b: Ex):
     src, out, srt = STORE / f"{b.id}.mp4", STORE / f"{b.id}_km.mp4", STORE / f"{b.id}.srt"
@@ -66,10 +66,10 @@ def export(b: Ex):
     if not clips: raise HTTPException(400, "សូមចុច Generate Khmer Audio ជាមុន")
     track = SB.write_track(STORE, b.id, b.segments, b.blank) if (b.subs and b.blank) else None
     q = P.TIERS[P.tier(P.load())]["export"]   # Standard = លឿន, Premium = គុណភាពខ្ពស់
-    guard(lambda: ff(*SB.export_args(src.name, clips, track, out.name, q)))
+    guard(lambda: ff(*SB.export_args(src.name, clips, track, out.name, q, _bgm(b.bgm))))
     return {"url": f"/files/{out.name}"}
 
-class TE(BaseModel): segments: list[dict]; kind: str = "mp3"   # segments: {n,start,end,zh,km,char,audio}
+class TE(BaseModel): segments: list[dict]; kind: str = "mp3"; bgm: str = ""   # segments: {n,start,end,zh,km,char,audio}
 @app.post("/api/tts_export")
 def tts_export(b: TE):
     clips = [s for s in b.segments if s.get("audio")]
@@ -79,7 +79,7 @@ def tts_export(b: TE):
         out = STORE / f"khmer_tts_{tag}.zip"; SB.build_zip(STORE, clips, out)
     else:
         out = STORE / f"khmer_voice_{tag}.mp3"; q = P.TIERS[P.tier(P.load())]["export"]
-        guard(lambda: ff(*SB.audio_args(clips, out.name, q)))
+        guard(lambda: ff(*SB.audio_args(clips, out.name, q, _bgm(b.bgm))))
     return {"url": f"/files/{out.name}"}
 
 @app.post("/api/tts_import")
@@ -88,6 +88,54 @@ async def tts_import(files: list[UploadFile]):
     except zipfile.BadZipFile: raise HTTPException(400, "file ZIP មិនត្រឹមត្រូវ")
     if not out: raise HTTPException(400, "រកមិនឃើញ file សំឡេង (mp3 / wav / m4a / ogg / aac / flac)")
     return out
+
+BGM_JOBS = {}
+
+def _bgm(n):
+    """ទទួលឈ្មោះ ឬ URL → ឈ្មោះ file ក្នុង storage (ឬ None បើមិនមាន)"""
+    n = pathlib.Path((n or "").split("?")[0]).name
+    return n if n and (STORE / n).is_file() else None
+
+@app.post("/api/bgm")
+async def bgm_upload(id: str, file: UploadFile):
+    import threading
+    ext = pathlib.Path(file.filename or "").suffix.lower()
+    vid = pathlib.Path(id).name
+    data = await file.read()
+    if ext in SB.AUD:
+        name = f"{vid}_bgm{ext}"
+        (STORE / name).write_bytes(data)
+        return {"url": f"/files/{name}"}
+    if ext not in {".mp4", ".mov", ".mkv", ".webm", ".avi", ".opus", ".wma"}:
+        raise HTTPException(400, "BGM ត្រូវជា mp3 / wav / m4a / ogg / aac / flac / mp4 / mov / mkv / webm")
+    if BGM_JOBS.get(vid, {}).get("state") == "running":
+        raise HTTPException(409, "កំពុងដំណើរការ BGM មុន សូមរង់ចាំ")
+    BGM_JOBS[vid] = {"state": "running"}
+    def job():
+        tmp, wav, name = f"{vid}_bgm_src{ext}", f"{vid}_bgm_src.wav", f"{vid}_bgm.mp3"
+        sep = STORE / f"{vid}_sep"
+        try:
+            (STORE / tmp).write_bytes(data)
+            ff("-i", tmp, "-vn", "-ac", "2", "-ar", "44100", wav)
+            try:   # ដកសំដីដោយ Demucs
+                subprocess.run([sys.executable, "-m", "demucs", "--two-stems=vocals", "-o", str(sep), str(STORE / wav)],
+                               check=True, capture_output=True)
+                ff("-i", str(sep / "htdemucs" / f"{vid}_bgm_src" / "no_vocals.wav"), "-c:a", "libmp3lame", "-b:a", "192k", name)
+            except (FileNotFoundError, subprocess.CalledProcessError) as e:   # fallback ffmpeg
+                print("Demucs failed, using fallback:", getattr(e, "stderr", e))
+                ff("-i", wav, "-af", "pan=stereo|c0=c0-c1|c1=c1-c0", "-c:a", "libmp3lame", "-b:a", "192k", name)
+            BGM_JOBS[vid] = {"state": "done", "url": f"/files/{name}"}
+        except Exception as e:
+            BGM_JOBS[vid] = {"state": "error", "error": str(e)[-500:]}
+        finally:
+            (STORE / tmp).unlink(missing_ok=True); (STORE / wav).unlink(missing_ok=True)
+            shutil.rmtree(sep, ignore_errors=True)
+    threading.Thread(target=job, daemon=True).start()
+    return {"job": True}
+
+@app.get("/api/bgm_status")
+def bgm_status(id: str):
+    return BGM_JOBS.get(pathlib.Path(id).name, {"state": "none"})
 
 app.mount("/files", StaticFiles(directory=STORE), name="files")
 if (ROOT / "frontend/dist").exists():
