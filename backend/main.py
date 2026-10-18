@@ -102,11 +102,11 @@ async def bgm_upload(id: str, file: UploadFile):
     ext = pathlib.Path(file.filename or "").suffix.lower()
     vid = pathlib.Path(id).name
     data = await file.read()
-    if ext in SB.AUD:
+    if ext in SB.AUD and (__import__("os").environ.get("KH_BGM_KEEP") == "1" or __import__("importlib.util").util.find_spec("demucs") is None):   # រក្សាទុកផ្ទាល់ តែពេលកំណត់ KH_BGM_KEEP=1
         name = f"{vid}_bgm{ext}"
         (STORE / name).write_bytes(data)
         return {"url": f"/files/{name}"}
-    if ext not in {".mp4", ".mov", ".mkv", ".webm", ".avi", ".opus", ".wma"}:
+    if ext not in ({".mp4", ".mov", ".mkv", ".webm", ".avi", ".opus", ".wma"} | SB.AUD):
         raise HTTPException(400, "BGM ត្រូវជា mp3 / wav / m4a / ogg / aac / flac / mp4 / mov / mkv / webm")
     if BGM_JOBS.get(vid, {}).get("state") == "running":
         raise HTTPException(409, "កំពុងដំណើរការ BGM មុន សូមរង់ចាំ")
@@ -117,13 +117,16 @@ async def bgm_upload(id: str, file: UploadFile):
         try:
             (STORE / tmp).write_bytes(data)
             ff("-i", tmp, "-vn", "-ac", "2", "-ar", "44100", wav)
-            try:   # ដកសំដីដោយ Demucs
-                subprocess.run([sys.executable, "-m", "demucs", "--two-stems=vocals", "-o", str(sep), str(STORE / wav)],
+            import os as _os
+            model = _os.environ.get("KH_DEMUCS_MODEL", "htdemucs")
+            try:   # ដកសំដីដោយ Demucs (មិន fallback ទៅវិធីមិនស្អាតទៀតទេ)
+                subprocess.run([sys.executable, "-m", "demucs", "-n", model, "--two-stems=vocals", "-o", str(sep), str(STORE / wav)],
                                check=True, capture_output=True)
-                ff("-i", str(sep / "htdemucs" / f"{vid}_bgm_src" / "no_vocals.wav"), "-c:a", "libmp3lame", "-b:a", "192k", name)
-            except (FileNotFoundError, subprocess.CalledProcessError) as e:   # fallback ffmpeg
-                print("Demucs failed, using fallback:", getattr(e, "stderr", e))
-                ff("-i", wav, "-af", "pan=stereo|c0=c0-c1|c1=c1-c0", "-c:a", "libmp3lame", "-b:a", "192k", name)
+                ff("-i", str(sep / model / f"{vid}_bgm_src" / "no_vocals.wav"), "-c:a", "libmp3lame", "-b:a", "192k", name)
+            except (FileNotFoundError, subprocess.CalledProcessError) as e:
+                err = (e.stderr.decode("utf-8", "ignore") if getattr(e, "stderr", None) else str(e))[-400:]
+                print("Demucs failed:", err, flush=True)
+                raise RuntimeError("ដកសំដីចេញមិនបាន (Demucs): " + err)
             BGM_JOBS[vid] = {"state": "done", "url": f"/files/{name}"}
         except Exception as e:
             BGM_JOBS[vid] = {"state": "error", "error": str(e)[-500:]}

@@ -19,3 +19,6 @@ node_modules/
 frontend/dist/
 backend/settings.json
 .env
+demucs_out/
+*.good*
+*.bak*
