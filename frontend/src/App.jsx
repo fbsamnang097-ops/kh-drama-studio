@@ -149,11 +149,17 @@ export default function App() {
     setSegs((s) => s.map((x, i) => ({ ...x, km: r[i]?.km ?? x.km, char: r[i]?.char ?? x.char })));
   });
   const genAudio = run("កំពុងបង្កើតសំឡេង...", async () => {
+    let failed = 0;
     for (const s of segs) {
       if (!s.km) continue; patch(s.id, { status: "Generating" });
-      try { const r = await api("/api/tts", { text: s.km, gender: gender(s.char), speed: 0 }); patch(s.id, { audio: r.url, status: "Done" }); }
-      catch (e) { patch(s.id, { status: "Error" }); throw e; }
+      let ok = false;
+      for (let t = 0; t < 3 && !ok; t++) {
+        try { const r = await api("/api/tts", { text: s.km, gender: gender(s.char), speed: 0 }); patch(s.id, { audio: r.url, status: "Done" }); ok = true; }
+        catch (e) { console.error("TTS failed:", s.km, e); await new Promise((res) => setTimeout(res, 1000 * (t + 1))); }
+      }
+      if (!ok) { patch(s.id, { status: "Error" }); failed++; }
     }
+    if (failed) throw new Error("បង្កើតសំឡេងមិនបាន " + failed + " ឃ្លា (មើលស្ថានភាព Error ក្នុងតារាង)");
   });
   const exportV = run("កំពុង Export...", async () => {
     let pngs = [], blank = "";
