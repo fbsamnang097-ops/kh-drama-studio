@@ -5,5 +5,6 @@ httpx
 edge-tts
 requests
 python-dotenv
-faster-whisper
-av>=14
+faster-whisper==1.2.1
+av==15.1.0
+ctranslate2==4.8.3
