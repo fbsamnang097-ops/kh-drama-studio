@@ -82,7 +82,7 @@ def stt(audio_path, cfg):
     p = prov(cfg, "stt"); model = model_for(cfg, "stt", p)
     if p == "local":   # ឥតគិតថ្លៃ, ទាញ model ម្តងដំបូង
         from faster_whisper import WhisperModel
-        _WM = _WM or WhisperModel(model, device="cpu", compute_type="int8")
+        _WM = _WM or WhisperModel(model, device="cpu", compute_type="int8", cpu_threads=2, num_workers=1)
         segs, _ = _WM.transcribe(str(audio_path), language="zh", vad_filter=True)
         return [{"start": s.start, "end": s.end, "zh": s.text.strip()} for s in segs]
     with open_safe(audio_path, "rb") as f:   # OpenAI / Groq / custom (OpenAI-compatible)
