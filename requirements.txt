@@ -6,3 +6,4 @@ edge-tts
 requests
 python-dotenv
 faster-whisper
+av>=14
