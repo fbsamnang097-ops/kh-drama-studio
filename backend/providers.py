@@ -149,9 +149,18 @@ def tts(text, gender, speed, cfg):
             async for ch in edge_tts.Communicate(text, voice, rate=f"{round(speed*100):+d}%").stream():
                 if ch["type"] == "audio": out += ch["data"]
             return bytes(out)
-        data = asyncio.run(go())
-        if not data: raise RuntimeError("Edge TTS មិនបានផ្តល់សំឡេង")
-        return data
+        text = " ".join((text or "").split())
+        last = None
+        for attempt in range(3):
+            try:
+                data = asyncio.run(go())
+                if data: return data
+                last = "no audio"
+            except Exception as e:
+                last = repr(e)
+            print(f"Edge TTS attempt {attempt+1} failed: {last} | text={text[:60]!r}", flush=True)
+            time.sleep(1.5 * (attempt + 1))
+        raise RuntimeError(f"Edge TTS មិនបានផ្តល់សំឡេង: {text[:40]}")
     key = _key(cfg, "tts", p)
     if p == "azure":
         ssml = f"<speak version='1.0' xml:lang='km-KH'><voice name='{voice}'><prosody rate='{round(speed*100):+d}%'>{escape(text)}</prosody></voice></speak>"
