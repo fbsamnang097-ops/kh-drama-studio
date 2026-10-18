@@ -5,3 +5,4 @@ httpx
 edge-tts
 requests
 python-dotenv
+faster-whisper
