@@ -20,7 +20,7 @@ CATALOG = {
     "google_free": {"key": False},   # Google Translate ឥតគិតថ្លៃ (មិនផ្លូវការ, មានកំណត់)
     "custom": {"key": True, "model": "", "base": True}},
   "stt": {
-    "local": {"key": False, "model": "small"}, "openai": {"key": True, "model": "whisper-1"},
+    "local": {"key": False, "model": "tiny"}, "openai": {"key": True, "model": "whisper-1"},
     "groq": {"key": True, "model": "whisper-large-v3"}, "custom": {"key": True, "model": "whisper-1", "base": True}},
   "tts": {
     "edge": {"key": False, "male": "km-KH-PisethNeural", "female": "km-KH-SreymomNeural"},
@@ -40,7 +40,7 @@ BASES = {"codecraft": "https://codecraftapi.com/v1", "openai": "https://api.open
 TIERS = {
   "standard": {
     "translate": {"provider": "codecraft", "model": "claude-opus-4.8"},
-    "stt": {"provider": "local", "model": "small"},
+    "stt": {"provider": "local", "model": "tiny"},
     "tts": {"provider": "edge"},
     "export": {"preset": "veryfast", "crf": 23, "abr": "128k"},
     "context": 0,    # ចំនួនបន្ទាត់មុនៗ ដែលផ្ញើជាបរិបទពេលបកប្រែ
@@ -82,8 +82,10 @@ def stt(audio_path, cfg):
     p = prov(cfg, "stt"); model = model_for(cfg, "stt", p)
     if p == "local":   # ឥតគិតថ្លៃ, ទាញ model ម្តងដំបូង
         from faster_whisper import WhisperModel
-        _WM = _WM or WhisperModel(model, device="cpu", compute_type="int8", cpu_threads=2, num_workers=1)
-        segs, _ = _WM.transcribe(str(audio_path), language="zh", vad_filter=True)
+        if not _WM or _WM[0] != model:
+            _WM = None   # free the old model before loading a new one
+            _WM = (model, WhisperModel(model, device="cpu", compute_type="int8", cpu_threads=2, num_workers=1))
+        segs, _ = _WM[1].transcribe(str(audio_path), language="zh", vad_filter=True)
         return [{"start": s.start, "end": s.end, "zh": s.text.strip()} for s in segs]
     with open_safe(audio_path, "rb") as f:   # OpenAI / Groq / custom (OpenAI-compatible)
         r = httpx.post(f"{_base(cfg, 'stt', 'openai' if p == 'openai' else p)}/audio/transcriptions",

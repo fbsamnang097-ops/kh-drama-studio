@@ -80,7 +80,7 @@ export default function App() {
   const onTime = () => {
     const now = vref.current.currentTime; setT(now);
     const a = segs.find((s) => now >= s.start && now < s.end);
-    if (a?.audio && played.current !== a.id) { played.current = a.id; new Audio(a.audio).play().catch(() => {}); }
+    if (a?.audio && played.current !== a.id) { played.current = a.id; new Audio(a.audio).play().catch((e) => console.error("Khmer audio failed:", a.audio, e)); }
     if (!a) played.current = null;
   };
   const active = segs.find((s) => t >= s.start && t < s.end);
@@ -342,7 +342,9 @@ function Settings({ onClose, tier }) {
               <select className="w-full ghost mt-2 text-sm" value={p} onChange={(e) => setD({ ...d, [pk]: e.target.value })}>{Object.keys(cat[r]).map((o) => <option key={o}>{o}</option>)}</select>
               {c.base && inp("base_" + r, "Base URL (OpenAI-compatible)", "https://.../v1")}
               {c.key && inp(p === "custom" ? `key_custom_${r}` : "key_" + p, "API Key", "ដាក់ Key នៅទីនេះ", "password")}
-              {c.model !== undefined && inp(`${et}_${r}_model_${p}`, "Model", dm)}
+              {c.model !== undefined && (r === "stt" && p === "local"
+                ? <label className="block text-xs mt-2">Model<select className="w-full ghost mt-1 text-sm" value={d[`${et}_${r}_model_${p}`] || dm} onChange={(e) => setD({ ...d, [`${et}_${r}_model_${p}`]: e.target.value })}>{[["tiny", "tiny (លឿន, RAM តិច)"], ["base", "base (ល្អជាង, RAM ច្រើនជាង)"], ["small", "small (ត្រូវការ RAM ≥ 1GB)"]].map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select></label>
+                : inp(`${et}_${r}_model_${p}`, "Model", dm))}
               {c.region && inp("azure_region", "Azure Region", "southeastasia")}
               {r === "tts" && <>{inp(`tts_male_${p}`, "សំឡេងប្រុស", c.male)}{inp(`tts_female_${p}`, "សំឡេងស្រី", c.female)}</>}
               {!c.key && <div className="text-xs opacity-60 mt-2">ឥតគិតថ្លៃ — មិនត្រូវការ Key</div>}
