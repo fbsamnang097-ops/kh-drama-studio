@@ -110,21 +110,32 @@ def _chat(cfg, p, msg):
 PREMIUM_NOTE = ("Quality rules: keep character names and terminology consistent, preserve emotion and register "
                 "(romantic, angry, formal...), use natural Cambodian drama dialogue, and keep each line short enough "
                 "to be spoken within the original timing.\n")
+_GF_CACHE = {}
 def _gfree(text):
-    """Google Translate ឥតគិតថ្លៃ (endpoint មិនផ្លូវការ, គ្មាន key, មានកំណត់ចំនួន request) · zh → km"""
-    for k in range(5):
-        r = httpx.get("https://translate.googleapis.com/translate_a/single", timeout=30, headers={"User-Agent": "Mozilla/5.0"},
-                      params={"client": "gtx", "sl": "zh-CN", "tl": "km", "dt": "t", "q": text})
-        if r.status_code == 429 or r.status_code >= 500: time.sleep(2 ** k); continue   # រង់ចាំ ហើយសាកម្តងទៀត
-        r.raise_for_status()
-        return "".join(seg[0] for seg in r.json()[0] if seg and seg[0])
-    raise RuntimeError("Google Translate ឥតគិតថ្លៃ ត្រូវបានកំណត់ចំនួន (429)។ រង់ចាំប្រហែល ១០ នាទី ឬប្តូរទៅ provider ផ្សេង (Gemini / Claude)")
+    if text in _GF_CACHE: return _GF_CACHE[text]
+    last = None
+    for attempt in range(6):
+        try:
+            r = httpx.get("https://translate.googleapis.com/translate_a/single",
+                params={"client": "gtx", "sl": "zh-CN", "tl": "km", "dt": "t", "q": text}, timeout=30)
+            if r.status_code == 429:
+                last = "429"
+            else:
+                r.raise_for_status()
+                out = "".join(seg[0] for seg in r.json()[0] if seg and seg[0])
+                _GF_CACHE[text] = out
+                return out
+        except Exception as e:
+            last = repr(e)
+        print(f"Google free translate attempt {attempt+1} failed: {last} | {text[:30]!r}", flush=True)
+        time.sleep(2 * (attempt + 1))
+    raise RuntimeError("Google Translate ឥតគិតថ្លៃ ត្រូវបានកំណត់ចំនួន ឬបរាជ័យ (" + str(last) + ")។ រង់ចាំប្រហែល ១០ នាទី ហើយសាកម្តងទៀត")
 
 def translate(lines, cfg):
     p, out, t = prov(cfg, "translate"), [], tier(cfg)
     if p == "google_free":   # បកម្តងមួយបន្ទាត់ · មិនទាយតួអង្គ (រក្សា Character ដែលមានស្រាប់)
         for z in lines:
-            out.append({"km": _gfree(z) if z.strip() else ""}); time.sleep(0.15)
+            out.append({"km": _gfree(z) if z.strip() else ""}); time.sleep(0.4)
         return out
     ctx = TIERS[t]["context"]
     for i in range(0, len(lines), 40):   # ចែកជាបំណែក ដើម្បីកុំឱ្យវែងពេក
