@@ -38,8 +38,7 @@ def _mix(n, bgm_idx, pad=False):
     return flt
 
 def export_args(src, clips, subs_txt, out, q, bgm=None):
-    """ឈ្មោះ file ទាំងអស់ជាឈ្មោះសាមញ្ញ (ដំណើរការក្នុង cwd=storage)
-    bgm = ឈ្មោះ file ភ្លេង (ជម្រើស) → លាយជាមួយសំឡេងខ្មែរ ដោយបន្ថយភ្លេងពេលតួនិយាយ"""
+    # q["hd"] = re-encode ច្បាស់; q["tw"],q["th"] = ទំហំ upscale (ស្គាល់ស្វ័យប្រវត្តិពីប្រភព)
     inputs, flt = ["-i", src], []
     for i, s in enumerate(clips):
         inputs += ["-i", pathlib.Path(s["audio"]).name]
@@ -48,11 +47,20 @@ def export_args(src, clips, subs_txt, out, q, bgm=None):
     if bgm:
         inputs += ["-stream_loop", "-1", "-i", pathlib.Path(bgm).name]; bgm_idx = nxt; nxt += 1
     flt += _mix(len(clips), bgm_idx, pad=bool(bgm))
-    if subs_txt:   # បញ្ចូលអក្សរក្នុងវីដេអូ
+    x264 = ["-c:v", "libx264", "-preset", q["preset"], "-crf", str(q["crf"]), "-pix_fmt", "yuv420p"]
+    if subs_txt:
         inputs += ["-f", "concat", "-safe", "0", "-i", subs_txt]
-        flt.append(f"[0:v][{nxt}:v]overlay=x=0:y=H-h:eof_action=pass[vout]"); vmap = "[vout]"
-        venc = ["-c:v", "libx264", "-preset", q["preset"], "-crf", str(q["crf"]), "-pix_fmt", "yuv420p"]
-    else:          # បិទអក្សរ → មិន re-encode វីដេអូ (លឿន)
+        if q.get("tw"):
+            flt.append(f"[0:v]scale={q['tw']}:{q['th']}:flags=lanczos[v0]")
+            flt.append(f"[{nxt}:v]scale={q['tw']}:-2:flags=lanczos[sb]")
+            flt.append("[v0][sb]overlay=x=0:y=H-h:eof_action=pass[vout]")
+        else:
+            flt.append(f"[0:v][{nxt}:v]overlay=x=0:y=H-h:eof_action=pass[vout]")
+        vmap, venc = "[vout]", x264
+    elif q.get("hd"):
+        flt.append(f"[0:v]scale={q['tw']}:{q['th']}:flags=lanczos[vout]" if q.get("tw") else "[0:v]null[vout]")
+        vmap, venc = "[vout]", x264
+    else:
         vmap, venc = "0:v", ["-c:v", "copy"]
     return [*inputs, "-filter_complex", ";".join(flt), "-map", vmap, "-map", "[aout]", *venc,
             "-c:a", "aac", "-b:a", q["abr"], "-movflags", "+faststart", *(["-shortest"] if bgm else []), out]

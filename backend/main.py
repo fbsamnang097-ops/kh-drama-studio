@@ -56,7 +56,21 @@ def tts(b: Sp):
         return {"url": f"/files/{name}"}
     return guard(run)
 
-class Ex(BaseModel): id: str; segments: list[dict]; subs: bool = True; blank: str = ""; bgm: str = ""   # segments: {start,end,km,audio,png}
+def _q(q, quality, src):
+    q = dict(q)
+    if quality == "hd":
+        q.update(preset="medium", crf=17, abr="192k", hd=True)
+        try:
+            r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", str(STORE / src)], capture_output=True, text=True)
+            w, h = [int(x) for x in r.stdout.strip().split(",")[:2]]
+            if min(w, h) < 1080:
+                k = 1080 / min(w, h)
+                q["tw"], q["th"] = int(round(w * k / 2)) * 2, int(round(h * k / 2)) * 2
+        except Exception as e:
+            print("probe failed:", e, flush=True)
+    return q
+
+class Ex(BaseModel): id: str; segments: list[dict]; subs: bool = True; blank: str = ""; bgm: str = ""; quality: str = ""   # segments: {start,end,km,audio,png}
 @app.post("/api/export")
 def export(b: Ex):
     src, out, srt = STORE / f"{b.id}.mp4", STORE / f"{b.id}_km.mp4", STORE / f"{b.id}.srt"
@@ -66,7 +80,7 @@ def export(b: Ex):
     if not clips: raise HTTPException(400, "សូមចុច Generate Khmer Audio ជាមុន")
     track = SB.write_track(STORE, b.id, b.segments, b.blank) if (b.subs and b.blank) else None
     q = P.TIERS[P.tier(P.load())]["export"]   # Standard = លឿន, Premium = គុណភាពខ្ពស់
-    guard(lambda: ff(*SB.export_args(src.name, clips, track, out.name, q, _bgm(b.bgm))))
+    guard(lambda: ff(*SB.export_args(src.name, clips, track, out.name, _q(q, b.quality, src.name), _bgm(b.bgm))))
     return {"url": f"/files/{out.name}"}
 
 class TE(BaseModel): segments: list[dict]; kind: str = "mp3"; bgm: str = ""   # segments: {n,start,end,zh,km,char,audio}

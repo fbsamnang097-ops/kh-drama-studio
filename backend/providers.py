@@ -42,7 +42,7 @@ TIERS = {
     "translate": {"provider": "google_free"},
     "stt": {"provider": "local", "model": "tiny"},
     "tts": {"provider": "edge"},
-    "export": {"preset": "veryfast", "crf": 23, "abr": "128k"},
+    "export": {"preset": "medium", "crf": 17, "abr": "192k"},
     "context": 0,    # ចំនួនបន្ទាត់មុនៗ ដែលផ្ញើជាបរិបទពេលបកប្រែ
   },
   "premium": {

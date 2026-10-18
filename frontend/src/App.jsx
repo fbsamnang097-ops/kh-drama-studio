@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useState, useRef, useEffect, useCallback } from "react";
 
 const api = async (path, body, isForm) => {
@@ -161,11 +162,45 @@ export default function App() {
     }
     if (failed) throw new Error("បង្កើតសំឡេងមិនបាន " + failed + " ឃ្លា (មើលស្ថានភាព Error ក្នុងតារាង)");
   });
+  const [showExp, setShowExp] = useState(false);
+  const [expQ, setExpQ] = useState("hd");
+  const saveRef = useRef(null);
+  const [saveName, setSaveName] = useState("");
+  const pickSave = async () => {
+    if (!window.showSaveFilePicker) { alert("Browser នេះមិនគាំទ្រការជ្រើសកន្លែងរក្សាទុកទេ (ប្រើ Chrome ឬ Edge)។ file នឹងទៅ Downloads។"); return; }
+    try {
+      const h = await window.showSaveFilePicker({ suggestedName: "video_km.mp4", types: [{ description: "MP4 video", accept: { "video/mp4": [".mp4"] } }] });
+      saveRef.current = h; setSaveName(h.name);
+    } catch (e) { /* បោះបង់ */ }
+  };
+  const saveOut = async (url) => {
+    const h = saveRef.current; saveRef.current = null; setSaveName("");
+    if (h) {
+      try { const blob = await (await fetch(url)).blob(); const w = await h.createWritable(); await w.write(blob); await w.close(); return; }
+      catch (e) { console.error("Save failed:", e); }
+    }
+    const a = document.createElement("a"); a.href = url; a.download = "video_km.mp4"; document.body.appendChild(a); a.click(); a.remove();
+  };
+  const expDialog = showExp ? createPortal(
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowExp(false)}>
+      <div className="glass bg-[#1a1245]/95 p-5 w-[440px] space-y-3" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold">Export Video</h2>
+        <div className="text-sm font-semibold">គុណភាព</div>
+        {[["hd", "ច្បាស់ (HD 1080p)", "Upscale ទៅ 1080p ស្វ័យប្រវត្តិ · គុណភាពខ្ពស់ · យឺតជាង · file ធំជាង"], ["normal", "ធម្មតា", "ទំហំដើម · លឿន · file តូច"]].map(([v, t, d]) => (
+          <label key={v} className="glass p-3 flex gap-2 items-start cursor-pointer" style={{ borderLeft: `4px solid ${expQ === v ? "#a78bfa" : "transparent"}` }}>
+            <input type="radio" name="expq" checked={expQ === v} onChange={() => setExpQ(v)} />
+            <span><span className="block text-sm font-semibold">{t}</span><span className="block text-xs opacity-70">{d}</span></span>
+          </label>))}
+        <div className="text-sm font-semibold">កន្លែងរក្សាទុក</div>
+        <div className="flex gap-2 items-center"><button className="ghost" onClick={pickSave}>📁 Browse...</button><span className="text-xs opacity-70 truncate">{saveName || "មិនទាន់ជ្រើស (ទៅ Downloads)"}</span></div>
+        <div className="flex gap-2 justify-end"><button className="ghost" onClick={() => setShowExp(false)}>បោះបង់</button><button className="neon" onClick={() => { setShowExp(false); exportV(); }}>Export</button></div>
+      </div>
+    </div>, document.body) : null;
   const exportV = run("កំពុង Export...", async () => {
     let pngs = [], blank = "";
     if (showSub) ({ pngs, blank } = await renderSubs(segs, vs.w, vs.h));
-    const r = await api("/api/export", { id: video.id, segments: segs.map((s, i) => ({ ...s, png: pngs[i] || "" })), subs: showSub, blank, bgm });
-    setExported(true); window.open(r.url);
+    const r = await api("/api/export", { id: video.id, segments: segs.map((s, i) => ({ ...s, png: pngs[i] || "" })), subs: showSub, blank, bgm, quality: expQ });
+    setExported(true); await saveOut(r.url);
   });
   const [bgmVol, setBgmVol] = useState(0.5);
   const bgmAud = useRef(null);
@@ -277,7 +312,7 @@ export default function App() {
       {/* ៣. Timeline */}
       <section className="pnl pnl-teal col-start-2 p-3 pt-4 flex flex-col gap-2 min-h-0 min-w-0">
         <div className="flex gap-2 items-center text-sm">
-          <B c="cyan" onClick={translate}>Translate</B><B c="green" onClick={genAudio}>Generate Khmer Audio</B><B c="orange" onClick={exportV}>Export Video</B>
+          <B c="cyan" onClick={translate}>Translate</B><B c="green" onClick={genAudio}>Generate Khmer Audio</B><B c="orange" onClick={() => setShowExp(true)}>Export Video</B>{expDialog}
           <span className="ml-auto">Zoom</span><input type="range" min={5} max={80} value={zoom} onChange={(e) => setZoom(+e.target.value)} />
         </div>
         <Timeline {...{ bgm, segs, patch, dur, zoom, t, video, seek: (x) => { if (vref.current) vref.current.currentTime = x; } }} />
