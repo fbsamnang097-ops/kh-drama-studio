@@ -247,6 +247,24 @@ background:conic-gradient(from var(--stg),transparent 0 45%,#ec4899 62%,#fbbf24 
 animation:stgspin 3s linear infinite}
 @media(prefers-reduced-motion:reduce){.kh-stg::after{animation:none}}
 </style>
+<style id="kh-av-css">
+#kh-poster .av img{object-fit:cover;object-position:50% 0%;transform:scale(.85);transform-origin:50% 8%}
+</style>
+<style id="kh-av2-css">
+#kh-poster .av .in::before{content:"";position:absolute;inset:-12px;background:url(/profile.jpg) center/cover no-repeat;filter:blur(12px) brightness(.85);pointer-events:none}
+#kh-poster .av img{object-fit:contain!important;object-position:50% 50%!important;transform:none!important;z-index:1}
+</style>
+<style id="kh-av3-css">
+#kh-poster .av .in::before{display:none!important}
+#kh-poster .av img{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:cover!important;object-position:50% 0%!important;transform:none!important}
+</style>
+<style id="kh-clock-css">
+#kh-clock{position:fixed;z-index:20;display:none;flex-direction:column;align-items:center;line-height:1.15;padding:3px 14px;border-radius:12px;pointer-events:none;white-space:nowrap;
+background:linear-gradient(135deg,rgba(236,72,153,.28),rgba(139,92,246,.28),rgba(34,211,238,.22));border:1.5px solid rgba(167,139,250,.55);box-shadow:0 0 14px rgba(139,92,246,.45)}
+#kh-clock .t{font-weight:800;font-size:15px;font-variant-numeric:tabular-nums;background:linear-gradient(90deg,#f472b6,#fbbf24,#34d399);-webkit-background-clip:text;background-clip:text;color:transparent}
+#kh-clock .d{font-size:11px;font-weight:600;color:#e9d5ff}
+#kh-clock.compact .d{display:none}
+</style>
 </head>
 <body><div id="root"></div>
 <footer id="kh-foot"><span>© 2026 KH Drama Studio · រក្សាសិទ្ធិគ្រប់យ៉ាង</span><span>•</span><span>Develop by <a id="kh-dev" role="button">Mr. Samnang</a></span></footer><script type="module" src="/src/main.jsx"></script><script id="ui-hdr-colors">
@@ -685,6 +703,44 @@ animation:stgspin 3s linear infinite}
   setInterval(run,250);
   document.addEventListener("click",function(){setTimeout(run,60);setTimeout(run,300);},true);
   run();
+})();
+</script>
+<script id="kh-clock-js">
+(function(){
+  if(document.getElementById("kh-clock")) return;
+  var c=document.createElement("div"); c.id="kh-clock";
+  c.innerHTML='<span class="t"></span><span class="d"></span>';
+  document.body.appendChild(c);
+  var tE=c.querySelector(".t"), dE=c.querySelector(".d");
+  function findStd(){
+    var l=document.querySelectorAll("button");
+    for(var i=0;i<l.length;i++){ if((l[i].textContent||"").trim()==="Standard") return l[i]; }
+    return null;
+  }
+  function tick(){
+    var d=new Date(), t, dt;
+    try{ t=d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",second:"2-digit"}); }catch(e){ t=d.toTimeString().slice(0,8); }
+    try{ dt=d.toLocaleDateString("km-KH-u-nu-latn",{weekday:"long",day:"numeric",month:"long",year:"numeric"}); }catch(e){ dt=d.toDateString(); }
+    tE.textContent=t; dE.textContent=dt;
+  }
+  function place(){
+    try{
+      var nav=document.querySelector("nav"), std=findStd();
+      c.style.display="flex"; c.classList.remove("compact");
+      if(!nav||!std){ c.style.top="8px"; c.style.left=(innerWidth/2-c.offsetWidth/2)+"px"; return; }
+      var n=nav.getBoundingClientRect(), s=std.getBoundingClientRect();
+      var left=n.right+16, right=s.left-16, gap=right-left;
+      if(c.offsetWidth>gap) c.classList.add("compact");
+      var w=c.offsetWidth;
+      if(w>gap){ c.style.display="none"; return; }
+      c.style.left=(left+(gap-w)/2)+"px";
+      var mid=n.top+n.height/2;
+      c.style.top=(mid-c.offsetHeight/2)+"px";
+    }catch(e){}
+  }
+  function loop(){ tick(); place(); }
+  loop(); setInterval(loop,1000);
+  window.addEventListener("resize",place);
 })();
 </script>
 </body></html>
