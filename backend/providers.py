@@ -39,7 +39,7 @@ BASES = {"codecraft": "https://codecraftapi.com/v1", "openai": "https://api.open
 # កែ provider/model នៅទីនេះ ឬក្នុង Settings (ប្រើ tab Standard / Premium)
 TIERS = {
   "standard": {
-    "translate": {"provider": "codecraft", "model": "claude-opus-4.8"},
+    "translate": {"provider": "google_free"},
     "stt": {"provider": "local", "model": "tiny"},
     "tts": {"provider": "edge"},
     "export": {"preset": "veryfast", "crf": 23, "abr": "128k"},
