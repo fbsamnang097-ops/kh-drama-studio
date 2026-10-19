@@ -281,6 +281,20 @@ box-shadow:0 8px 24px rgba(0,0,0,.35);animation:khtin .25s ease-out}
 .kh-t-warning{background:#fff3e0;border-color:#8a4b00;color:#6b3a00}
 .kh-t-info{background:#e3f2ff;border-color:#0b4a8f;color:#0a3d78}
 </style>
+<style id="kh-vs-css">
+@property --vsa{syntax:'<angle>';initial-value:0deg;inherits:false}
+@keyframes vsspin{to{--vsa:360deg}}
+#kh-vslink{position:relative;display:inline-flex;align-items:center;gap:6px;flex:none;white-space:nowrap;text-decoration:none;cursor:pointer;
+padding:6px 14px;border-radius:10px;font-weight:800;font-size:14px;color:#fff;margin:0 10px;
+background:linear-gradient(135deg,#06b6d4,#3b82f6 55%,#8b5cf6);box-shadow:0 0 14px rgba(59,130,246,.55);transition:transform .15s,filter .15s}
+#kh-vslink:hover{transform:translateY(-2px);filter:brightness(1.12)}
+#kh-vslink::after{content:"";position:absolute;inset:-2px;padding:2px;border-radius:inherit;pointer-events:none;
+background:conic-gradient(from var(--vsa),transparent 0 55%,#22d3ee 72%,#fff 88%,#ec4899 100%);
+-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:vsspin 2.4s linear infinite}
+#kh-vslink.fixed{position:fixed;z-index:25;top:10px;right:200px;margin:0}
+@media(max-width:1250px){#kh-vslink .lt{display:none}#kh-vslink{padding:6px 10px}}
+@media(prefers-reduced-motion:reduce){#kh-vslink::after{animation:none}}
+</style>
 </head>
 <body><div id="root"></div>
 <footer id="kh-foot"><span>© 2026 KH Drama Studio · រក្សាសិទ្ធិគ្រប់យ៉ាង</span><span>•</span><span>Develop by <a id="kh-dev" role="button">Mr. Samnang</a></span></footer><script type="module" src="/src/main.jsx"></script><script id="ui-hdr-colors">
@@ -744,8 +758,8 @@ box-shadow:0 8px 24px rgba(0,0,0,.35);animation:khtin .25s ease-out}
       var nav=document.querySelector("nav"), std=findStd();
       c.style.display="flex"; c.classList.remove("compact");
       if(!nav||!std){ c.style.top="8px"; c.style.left=(innerWidth/2-c.offsetWidth/2)+"px"; return; }
-      var n=nav.getBoundingClientRect(), s=std.getBoundingClientRect();
-      var left=n.right+16, right=s.left-16, gap=right-left;
+      var vl=document.getElementById("kh-vslink"); var n=nav.getBoundingClientRect(), s=(vl||std).getBoundingClientRect();
+      var left=n.right+16, right=s.left-(vl?24:16), gap=right-left;
       if(c.offsetWidth>gap) c.classList.add("compact");
       var w=c.offsetWidth;
       if(w>gap){ c.style.display="none"; return; }
@@ -834,6 +848,39 @@ box-shadow:0 8px 24px rgba(0,0,0,.35);animation:khtin .25s ease-out}
     }catch(e){}
     return p;
   };
+})();
+</script>
+<script id="kh-vs-js">
+(function(){
+  var URL="https://video-studio-bzxm.onrender.com/";
+  function make(){
+    var a=document.createElement("a"); a.id="kh-vslink"; a.href=URL; a.target="_blank"; a.rel="noopener noreferrer";
+    a.title="Video Studio \u2014 \u1791\u17b6\u1789\u1799\u1780\u179c\u17b8\u178a\u17c1\u17a2\u17bc";
+    a.innerHTML='<span>\u2B07</span><span class="lt">Download Video</span>';
+    return a;
+  }
+  function findStd(){
+    var l=document.querySelectorAll("button");
+    for(var i=0;i<l.length;i++){ if((l[i].textContent||"").trim()==="Standard") return l[i]; }
+    return null;
+  }
+  function run(){
+    try{
+      var a=document.getElementById("kh-vslink");
+      var std=findStd();
+      if(std&&std.parentElement){
+        var grp=std.parentElement, host=grp.parentElement;
+        if(!a) a=make();
+        a.classList.remove("fixed");
+        if(a.parentElement!==host||a.nextSibling!==grp) host.insertBefore(a,grp);
+      }else if(!a){
+        a=make(); a.classList.add("fixed"); document.body.appendChild(a);
+      }
+    }catch(e){}
+  }
+  var root=document.getElementById("root");
+  if(root) new MutationObserver(run).observe(root,{childList:true,subtree:true});
+  run(); setTimeout(run,600); setTimeout(run,1800);
 })();
 </script>
 </body></html>
