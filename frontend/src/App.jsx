@@ -75,7 +75,7 @@ export default function App() {
   const vref = useRef(); const played = useRef(null);
 
   const patch = (id, p) => setSegs((s) => s.map((x) => (x.id === id ? { ...x, ...p } : x)));
-  const run = (label, fn) => async () => { setBusy(label); try { await fn(); } catch (e) { alert(e.message); } setBusy(""); };
+  const run = (label, fn) => async () => { setBusy(label); try { await fn(); window.khOk && window.khOk(label); } catch (e) { alert(e.message); } setBusy(""); };
 
   // Sync វីដេអូ ↔ Subtitle ↔ សំឡេង
   const onTime = () => {
@@ -99,7 +99,7 @@ export default function App() {
   };
 
   // ---- Export / Import: STT · Translate · TTS ----
-  const runWith = (label, fn) => async (...x) => { setBusy(label); try { await fn(...x); } catch (e) { alert(e.message); } setBusy(""); };
+  const runWith = (label, fn) => async (...x) => { setBusy(label); try { await fn(...x); window.khOk && window.khOk(label); } catch (e) { alert(e.message); } setBusy(""); };
   const base = video?.id || "project";
   const save = (name, data, type = "text/plain") => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([data], { type: type + ";charset=utf-8" })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); };
   const exportText = (key, fmt) => {   // key: "zh" (STT) | "km" (Translate) — រក្សាគ្រប់ segment ដើម្បីឱ្យ Import ត្រឡប់មកត្រូវលំដាប់
@@ -227,7 +227,7 @@ export default function App() {
     const r = await api("/api/bgm?id=" + video.id, fd, true);
     if (r.url) { setBgm(r.url + "?v=" + Date.now()); return; }
     for (;;) {   // រង់ចាំ Demucs ដកសំដី (background job)
-      await new Promise((ok) => setTimeout(ok, 2000));
+      await new Promise((ok) => setTimeout(ok, 700));
       const j = await api("/api/bgm_status?id=" + video.id);
       if (j.state === "done") { setBgm(j.url + "?v=" + Date.now()); return; }
       if (j.state === "error") throw new Error(j.error || "BGM បរាជ័យ");
