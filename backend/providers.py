@@ -111,25 +111,52 @@ PREMIUM_NOTE = ("Quality rules: keep character names and terminology consistent,
                 "(romantic, angry, formal...), use natural Cambodian drama dialogue, and keep each line short enough "
                 "to be spoken within the original timing.\n")
 _GF_CACHE = {}
+_GF_BLOCK = 0.0   # Google ត្រូវបានបិទរហូតដល់ម៉ោងនេះ (time.time)
+_EDGE_TOK = {"t": "", "at": 0.0}
+def _google_once(text):
+    r = httpx.get("https://translate.googleapis.com/translate_a/single",
+        params={"client": "gtx", "sl": "zh-CN", "tl": "km", "dt": "t", "q": text}, timeout=30)
+    if r.status_code in (302, 403, 429):
+        raise RuntimeError("blocked " + str(r.status_code))
+    r.raise_for_status()
+    return "".join(seg[0] for seg in r.json()[0] if seg and seg[0])
+def _edge_tr(text):
+    now = time.time()
+    if not _EDGE_TOK["t"] or now - _EDGE_TOK["at"] > 480:
+        r = httpx.get("https://edge.microsoft.com/translate/auth", timeout=20, follow_redirects=True)
+        r.raise_for_status(); _EDGE_TOK["t"] = r.text.strip(); _EDGE_TOK["at"] = now
+    r = httpx.post("https://api-edge.cognitive.microsofttranslator.com/translate",
+        params={"from": "zh-Hans", "to": "km", "api-version": "3.0"},
+        headers={"Authorization": "Bearer " + _EDGE_TOK["t"], "Content-Type": "application/json"},
+        json=[{"Text": text}], timeout=30)
+    if r.status_code in (401, 403): _EDGE_TOK["t"] = ""
+    r.raise_for_status()
+    return r.json()[0]["translations"][0]["text"]
+def _mymemory(text):
+    import html
+    if len(text.encode("utf-8")) > 480: raise RuntimeError("text too long for MyMemory")
+    r = httpx.get("https://api.mymemory.translated.net/get", params={"q": text, "langpair": "zh-CN|km"}, timeout=30)
+    r.raise_for_status(); j = r.json()
+    out = html.unescape((j.get("responseData") or {}).get("translatedText", "") or "")
+    if str(j.get("responseStatus")) != "200" or not out.strip() or out.upper().startswith("MYMEMORY WARNING"):
+        raise RuntimeError("mymemory status " + str(j.get("responseStatus")))
+    return out
 def _gfree(text):
+    global _GF_BLOCK
+    MSG = "[google_blocked] Google Translate ឥតគិតថ្លៃ ត្រូវបានកំណត់ចំនួន ឬបរាជ័យ។ រង់ចាំប្រហែល ១០ នាទី ហើយសាកម្តងទៀត"
     if text in _GF_CACHE: return _GF_CACHE[text]
+    if time.time() < _GF_BLOCK: raise RuntimeError(MSG)
     last = None
-    for attempt in range(6):
+    for attempt in range(2):
         try:
-            r = httpx.get("https://translate.googleapis.com/translate_a/single",
-                params={"client": "gtx", "sl": "zh-CN", "tl": "km", "dt": "t", "q": text}, timeout=30)
-            if r.status_code == 429:
-                last = "429"
-            else:
-                r.raise_for_status()
-                out = "".join(seg[0] for seg in r.json()[0] if seg and seg[0])
-                _GF_CACHE[text] = out
-                return out
+            out = _google_once(text); _GF_CACHE[text] = out; return out
         except Exception as e:
             last = repr(e)
-        print(f"Google free translate attempt {attempt+1} failed: {last} | {text[:30]!r}", flush=True)
-        time.sleep(2 * (attempt + 1))
-    raise RuntimeError("Google Translate ឥតគិតថ្លៃ ត្រូវបានកំណត់ចំនួន ឬបរាជ័យ (" + str(last) + ")។ រង់ចាំប្រហែល ១០ នាទី ហើយសាកម្តងទៀត")
+            print(f"Google free translate failed: {last} | {text[:30]!r}", flush=True)
+            if "blocked" in str(e):
+                _GF_BLOCK = time.time() + 600; break
+            time.sleep(1.5 * (attempt + 1))
+    raise RuntimeError(MSG + " (" + str(last)[:120] + ")")
 
 def translate(lines, cfg):
     p, out, t = prov(cfg, "translate"), [], tier(cfg)

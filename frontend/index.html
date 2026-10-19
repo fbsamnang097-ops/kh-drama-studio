@@ -1071,4 +1071,51 @@ background:conic-gradient(from var(--lda),transparent 0 50%,#ec4899 68%,#fbbf24 
   window.addEventListener("resize",place);
 })();
 </script>
+<script id="kh-bt-js">
+(function(){
+  var pf=window.fetch, cache={};
+  function gOnce(t){
+    return pf("https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-CN&tl=km&dt=t&q="+encodeURIComponent(t))
+      .then(function(r){ if(!r.ok) throw new Error("http "+r.status); return r.json(); })
+      .then(function(j){ return (j[0]||[]).map(function(x){ return x&&x[0]?x[0]:""; }).join(""); });
+  }
+  function gTry(t,n){
+    if(!t||!t.trim()) return Promise.resolve("");
+    if(cache[t]!=null) return Promise.resolve(cache[t]);
+    return gOnce(t).then(function(o){ if(!o.trim()) throw new Error("empty"); cache[t]=o; return o; },
+      function(e){ if(n<=0) throw e; return new Promise(function(res){ setTimeout(res,800); }).then(function(){ return gTry(t,n-1); }); });
+  }
+  function all(lines){
+    var out=new Array(lines.length), idx=0, fail=null;
+    function worker(){
+      if(fail||idx>=lines.length) return Promise.resolve();
+      var i=idx++;
+      return gTry(lines[i],2).then(function(o){ out[i]={km:o}; },function(e){ fail=e; }).then(worker);
+    }
+    var ws=[]; for(var k=0;k<4;k++) ws.push(worker());
+    return Promise.all(ws).then(function(){ if(fail) throw fail; return out; });
+  }
+  var cur=window.fetch;
+  window.fetch=function(u,o){
+    var url=typeof u==="string"?u:((u&&u.url)||"");
+    var path=url.replace(/^https?:\/\/[^\/]+/,"").split("?")[0];
+    var m=((o&&o.method)||"GET").toUpperCase();
+    var p=cur.apply(this,arguments);
+    if(path!=="/api/translate"||m!=="POST") return p;
+    return p.then(function(r){
+      if(r.ok) return r;
+      return r.clone().json().then(function(j){
+        var d=String((j&&j.detail)||"");
+        if(d.indexOf("google_blocked")<0) return r;
+        var body; try{ body=JSON.parse(o.body); }catch(e){ return r; }
+        var lines=body&&body.lines; if(!Array.isArray(lines)) return r;
+        if(window.khToast) window.khToast("info","Server ត្រូវ Google បិទ · កំពុងបកប្រែតាម browser របស់អ្នក ("+lines.length+" ឃ្លា)...");
+        return all(lines).then(function(out){
+          return new Response(JSON.stringify(out),{status:200,headers:{"Content-Type":"application/json"}});
+        },function(){ return r; });
+      },function(){ return r; });
+    });
+  };
+})();
+</script>
 </body></html>
