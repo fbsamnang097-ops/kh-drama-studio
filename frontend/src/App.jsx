@@ -225,6 +225,7 @@ export default function App() {
   const uploadBgm = runWith("កំពុង Upload BGM...", async (f) => {
     const fd = new FormData(); fd.append("file", f);
     const r = await api("/api/bgm?id=" + video.id, fd, true);
+    if (r && r.warning) alert(r.warning);
     if (r.url) { setBgm(r.url + "?v=" + Date.now()); return; }
     for (;;) {   // រង់ចាំ Demucs ដកសំដី (background job)
       await new Promise((ok) => setTimeout(ok, 700));

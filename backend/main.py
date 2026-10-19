@@ -119,7 +119,11 @@ async def bgm_upload(id: str, file: UploadFile):
     if ext in SB.AUD and (__import__("os").environ.get("KH_BGM_KEEP") == "1" or __import__("importlib.util").util.find_spec("demucs") is None):   # រក្សាទុកផ្ទាល់ តែពេលកំណត់ KH_BGM_KEEP=1
         name = f"{vid}_bgm{ext}"
         (STORE / name).write_bytes(data)
-        return {"url": f"/files/{name}"}
+        kept = __import__("os").environ.get("KH_BGM_KEEP") == "1"
+        if kept:
+            return {"url": f"/files/{name}"}
+        return {"url": f"/files/{name}", "vocals_removed": False,
+                "warning": "Server នេះមិនដកសំដីទេ (គ្មាន Demucs)។ សូមដកសំដីលើ Mac មុន រួចទើប Upload"}
     if ext not in ({".mp4", ".mov", ".mkv", ".webm", ".avi", ".opus", ".wma"} | SB.AUD):
         raise HTTPException(400, "BGM ត្រូវជា mp3 / wav / m4a / ogg / aac / flac / mp4 / mov / mkv / webm")
     if BGM_JOBS.get(vid, {}).get("state") == "running":
