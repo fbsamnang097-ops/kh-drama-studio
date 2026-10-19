@@ -295,6 +295,43 @@ background:conic-gradient(from var(--vsa),transparent 0 55%,#22d3ee 72%,#fff 88%
 @media(max-width:1250px){#kh-vslink .lt{display:none}#kh-vslink{padding:6px 10px}}
 @media(prefers-reduced-motion:reduce){#kh-vslink::after{animation:none}}
 </style>
+<style id="kh-ld-css">
+@property --lda{syntax:'<angle>';initial-value:0deg;inherits:false}
+@keyframes ldspin{to{--lda:360deg}}
+@keyframes ldrot{to{transform:rotate(360deg)}}
+@keyframes ldind{0%{margin-left:-40%}100%{margin-left:100%}}
+@keyframes ldpulse{50%{opacity:.55}}
+#kh-ld{position:fixed;left:50%;bottom:54px;transform:translateX(-50%);z-index:9000;display:none;align-items:center;gap:14px;
+min-width:320px;max-width:92vw;padding:12px 18px;border-radius:18px;pointer-events:none;color:#fff;
+background:radial-gradient(120% 120% at 0% 0%,rgba(236,72,153,.5),transparent 60%),radial-gradient(120% 120% at 100% 100%,rgba(52,211,153,.4),transparent 60%),#150d3a;
+box-shadow:0 10px 40px rgba(0,0,0,.55)}
+#kh-ld::before{content:"";position:absolute;inset:0;padding:2.5px;border-radius:inherit;
+background:conic-gradient(from var(--lda),transparent 0 50%,#ec4899 68%,#fbbf24 80%,#34d399 91%,#22d3ee 100%);
+-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:ldspin 3s linear infinite}
+#kh-ld .sp{flex:none;width:30px;height:30px;border-radius:50%;border:4px solid rgba(255,255,255,.2);border-top-color:#ec4899;border-right-color:#fbbf24;animation:ldrot .9s linear infinite}
+#kh-ld .bd{flex:1;min-width:0}
+#kh-ld .lb{font-weight:800;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#kh-ld .bar{height:8px;border-radius:99px;background:rgba(255,255,255,.15);overflow:hidden;margin:6px 0 4px}
+#kh-ld .bar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#ec4899,#fbbf24,#34d399);transition:width .25s}
+#kh-ld.ind .bar i{width:40%;animation:ldind 1.3s ease-in-out infinite}
+#kh-ld.proc .bar i{animation:ldpulse 1.2s ease-in-out infinite}
+#kh-ld .sb{font-size:11px;opacity:.85}
+#kh-ld .pc{flex:none;min-width:52px;text-align:right;font-weight:800;font-size:16px;font-variant-numeric:tabular-nums}
+@media(prefers-reduced-motion:reduce){#kh-ld::before,#kh-ld .sp,#kh-ld.ind .bar i,#kh-ld.proc .bar i{animation:none}}
+</style>
+<style id="kh-ld2-css">
+#kh-ld{transform:none!important;bottom:auto!important;min-width:0!important;box-sizing:border-box;padding:6px 14px!important;gap:10px!important;border-radius:14px!important}
+#kh-ld .sp{width:22px!important;height:22px!important;border-width:3px!important}
+#kh-ld .lb{font-size:12px!important}
+#kh-ld .bar{margin:4px 0 0!important}
+#kh-ld .sb{display:none!important}
+#kh-ld .pc{font-size:13px!important;min-width:44px!important}
+</style>
+<style id="kh-ld4-css">
+#kh-ld.tiny .lb{display:none!important}
+#kh-ld.tiny{padding:6px 10px!important;gap:8px!important}
+#kh-ld.tiny .pc{min-width:38px!important;font-size:12px!important}
+</style>
 </head>
 <body><div id="root"></div>
 <footer id="kh-foot"><span>© 2026 KH Drama Studio · រក្សាសិទ្ធិគ្រប់យ៉ាង</span><span>•</span><span>Develop by <a id="kh-dev" role="button">Mr. Samnang</a></span></footer><script type="module" src="/src/main.jsx"></script><script id="ui-hdr-colors">
@@ -881,6 +918,145 @@ background:conic-gradient(from var(--vsa),transparent 0 55%,#22d3ee 72%,#fff 88%
   var root=document.getElementById("root");
   if(root) new MutationObserver(run).observe(root,{childList:true,subtree:true});
   run(); setTimeout(run,600); setTimeout(run,1800);
+})();
+</script>
+<script id="kh-ld-js">
+(function(){
+  var of=window.fetch, act=new Map(), seq=0, hideT=null, ttsDone=0, bgmPct=null, t0=0;
+  var el=document.createElement("div"); el.id="kh-ld";
+  el.innerHTML='<div class="sp"></div><div class="bd"><div class="lb"></div><div class="bar"><i></i></div><div class="sb"></div></div><div class="pc"></div>';
+  document.body.appendChild(el);
+  var lb=el.querySelector(".lb"), fill=el.querySelector(".bar i"), sb=el.querySelector(".sb"), pc=el.querySelector(".pc");
+  function mmss(ms){var s=Math.floor(ms/1000),m=Math.floor(s/60);s=s%60;return (m<10?"0":"")+m+":"+(s<10?"0":"")+s;}
+  function labelFor(p){
+    switch(p){
+      case "/api/upload": return "កំពុង Upload វីដេអូ";
+      case "/api/transcribe": return "កំពុង Transcribe (STT)";
+      case "/api/translate": return "កំពុងបកប្រែ";
+      case "/api/tts": return "កំពុងបង្កើតសំឡេងខ្មែរ";
+      case "/api/export": return "កំពុង Export វីដេអូ";
+      case "/api/bgm": return "កំពុង Upload BGM";
+      case "/api/bgm_status": return "កំពុងដកសំដីចេញពី BGM";
+      case "/api/tts_export": return "កំពុង Export TTS";
+      case "/api/tts_import": return "កំពុង Import សំឡេង";
+    }
+    return null;
+  }
+  function draw(){
+    var items=Array.from(act.values()); if(!items.length) return;
+    var it=items[items.length-1], t=mmss(Date.now()-t0);
+    var label=it.label; if(it.path==="/api/tts"&&ttsDone) label+=" · "+ttsDone+" ឃ្លា";
+    lb.textContent=label;
+    var det=(typeof it.pct==="number");
+    el.classList.toggle("ind",!det);
+    el.classList.toggle("proc",det&&!!it.proc);
+    if(det){
+      var v=Math.max(0,Math.min(100,it.pct)); fill.style.width=v+"%"; pc.textContent=Math.round(v)+"%";
+      sb.textContent=(it.proc?"Upload រួច · កំពុងដំណើរការ... ":"Loading... ")+t;
+    }else{ fill.style.width=""; pc.textContent=t; sb.textContent="Loading..."; }
+  }
+  function hide(){ el.style.display="none"; ttsDone=0; bgmPct=null; }
+  function render(){
+    clearTimeout(hideT);
+    if(act.size){ if(el.style.display!=="flex") t0=Date.now(); el.style.display="flex"; draw(); }
+    else hideT=setTimeout(hide,1500);
+  }
+  setInterval(function(){ if(act.size) draw(); },1000);
+  function xhrPost(url,o,it){
+    return new Promise(function(res,rej){
+      var x=new XMLHttpRequest(); x.open("POST",url);
+      x.upload.onprogress=function(e){ if(e.lengthComputable){ it.pct=e.loaded/e.total*100; draw(); } };
+      x.upload.onload=function(){ it.pct=100; it.proc=true; draw(); };
+      x.onload=function(){
+        var st=x.status; if(!st){ rej(new TypeError("Network error")); return; }
+        var body=[101,204,205,304].indexOf(st)>=0?null:x.responseText;
+        res(new Response(body,{status:st,statusText:x.statusText,headers:{"Content-Type":x.getResponseHeader("Content-Type")||"application/json"}}));
+      };
+      x.onerror=function(){ rej(new TypeError("Network error")); };
+      x.onabort=function(){ rej(new DOMException("Aborted","AbortError")); };
+      x.send(o.body);
+    });
+  }
+  window.fetch=function(u,o){
+    var url=typeof u==="string"?u:((u&&u.url)||"");
+    var path=url.replace(/^https?:\/\/[^\/]+/,"").split("?")[0];
+    var m=((o&&o.method)||(u&&u.method)||"GET").toUpperCase();
+    var lab=(m==="POST"||path==="/api/bgm_status")?labelFor(path):null;
+    if(!lab) return of.apply(this,arguments);
+    var id=++seq;
+    if(path==="/api/bgm") bgmPct=null;
+    var it={label:lab,path:path,proc:false,pct:(path==="/api/bgm_status"?bgmPct:null)};
+    act.set(id,it); render();
+    var isForm=m==="POST"&&o&&o.body&&typeof FormData!=="undefined"&&o.body instanceof FormData&&window.XMLHttpRequest;
+    if(isForm){
+      return xhrPost(url,o,it).then(function(r){
+        if(r.ok&&path==="/api/upload"&&window.khToast) window.khToast("success","Upload វីដេអូ ជោគជ័យ");
+        act.delete(id); render(); return r;
+      },function(e){ act.delete(id); render(); throw e; });
+    }
+    var p=of.apply(this,arguments);
+    p.then(function(r){
+      if(path==="/api/tts"&&r&&r.ok) ttsDone++;
+      if(path==="/api/bgm_status"&&r&&r.clone){
+        r.clone().json().then(function(j){
+          var fin=false;
+          if(j){
+            var v=(j.progress!=null?j.progress:(j.percent!=null?j.percent:j.pct));
+            if(typeof v==="number") bgmPct=v>1?v:v*100;
+            if(j.state==="done"||j.state==="error"||j.state==="none") fin=true;
+          }
+          act.delete(id); if(fin) hide(); else render();
+        }).catch(function(){ act.delete(id); render(); });
+      }else{ act.delete(id); render(); }
+    },function(){ act.delete(id); render(); });
+    return p;
+  };
+})();
+</script>
+<script id="kh-ld4-js">
+(function(){
+  var el=document.getElementById("kh-ld"); if(!el) return;
+  function findBgm(){
+    var l=document.querySelectorAll("label,button");
+    for(var i=0;i<l.length;i++){
+      var e=l[i]; if(e.closest("#kh-ld,#kh-foot,#kh-poster")) continue;
+      if(/Upload BGM/i.test(e.textContent||"")) return e;
+    }
+    return null;
+  }
+  function panelOf(b){
+    var p=b.closest(".kh-pf-target"); if(p) return p;
+    var e=b.parentElement;
+    while(e&&e!==document.body&&e.id!=="root"){
+      var rad=parseFloat(getComputedStyle(e).borderTopLeftRadius)||0;
+      if(rad>=8&&e.getBoundingClientRect().width<innerWidth*0.95) return e;
+      e=e.parentElement;
+    }
+    return null;
+  }
+  function place(){
+    if(el.style.display!=="flex") return;
+    var vw=innerWidth, vh=innerHeight, b=findBgm(), r=b&&b.getBoundingClientRect(), left, top, w;
+    if(r&&r.width>0){
+      var pn=panelOf(b), pr=pn?pn.getBoundingClientRect():null;
+      var limit=pr?Math.min(pr.right-16,vw-8):vw-8;
+      var avail=limit-(r.right+12);
+      var tiny=avail<190;
+      el.classList.toggle("tiny",tiny);
+      w=Math.max(tiny?96:150,Math.min(avail,360));
+      el.style.width=w+"px";
+      left=r.right+12;
+      if(left+w>limit) left=limit-w;
+      top=r.top+r.height/2-el.offsetHeight/2;
+    }else{
+      el.classList.remove("tiny"); el.style.width=""; w=el.offsetWidth;
+      left=vw/2-w/2; top=vh-el.offsetHeight-54;
+    }
+    top=Math.max(8,Math.min(top,vh-el.offsetHeight-8));
+    el.style.left=left+"px"; el.style.top=top+"px";
+  }
+  setInterval(place,120);
+  window.addEventListener("resize",place);
 })();
 </script>
 </body></html>
