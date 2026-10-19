@@ -332,6 +332,10 @@ background:conic-gradient(from var(--lda),transparent 0 50%,#ec4899 68%,#fbbf24 
 #kh-ld.tiny{padding:6px 10px!important;gap:8px!important}
 #kh-ld.tiny .pc{min-width:38px!important;font-size:12px!important}
 </style>
+<style id="kh-ld5-css">
+#kh-ld.above{padding:4px 12px!important;gap:8px!important}
+#kh-ld.above .sp{width:20px!important;height:20px!important}
+</style>
 </head>
 <body><div id="root"></div>
 <footer id="kh-foot"><span>© 2026 KH Drama Studio · រក្សាសិទ្ធិគ្រប់យ៉ាង</span><span>•</span><span>Develop by <a id="kh-dev" role="button">Mr. Samnang</a></span></footer><script type="module" src="/src/main.jsx"></script><script id="ui-hdr-colors">
@@ -1013,7 +1017,7 @@ background:conic-gradient(from var(--lda),transparent 0 50%,#ec4899 68%,#fbbf24 
   };
 })();
 </script>
-<script id="kh-ld4-js">
+<script id="kh-ld5-js">
 (function(){
   var el=document.getElementById("kh-ld"); if(!el) return;
   function findBgm(){
@@ -1036,23 +1040,31 @@ background:conic-gradient(from var(--lda),transparent 0 50%,#ec4899 68%,#fbbf24 
   }
   function place(){
     if(el.style.display!=="flex") return;
-    var vw=innerWidth, vh=innerHeight, b=findBgm(), r=b&&b.getBoundingClientRect(), left, top, w;
+    var vw=innerWidth, vh=innerHeight, b=findBgm(), r=b&&b.getBoundingClientRect(), left, top, w, h;
     if(r&&r.width>0){
       var pn=panelOf(b), pr=pn?pn.getBoundingClientRect():null;
       var limit=pr?Math.min(pr.right-16,vw-8):vw-8;
       var avail=limit-(r.right+12);
-      var tiny=avail<190;
-      el.classList.toggle("tiny",tiny);
-      w=Math.max(tiny?96:150,Math.min(avail,360));
-      el.style.width=w+"px";
-      left=r.right+12;
-      if(left+w>limit) left=limit-w;
-      top=r.top+r.height/2-el.offsetHeight/2;
+      if(avail>=150){
+        el.classList.remove("above");
+        el.classList.toggle("tiny",avail<190);
+        w=Math.min(avail,360); el.style.width=w+"px"; h=el.offsetHeight;
+        left=r.right+12; top=r.top+r.height/2-h/2;
+      }else{
+        el.classList.add("above"); el.classList.remove("tiny");
+        var minL=pr?pr.left+16:8;
+        w=Math.max(150,Math.min(260,limit-minL));
+        el.classList.toggle("tiny",w<200);
+        el.style.width=w+"px"; h=el.offsetHeight;
+        left=limit-w;
+        top=r.top-h-6;
+        if(pr) top=Math.max(top,pr.top+6);
+      }
     }else{
-      el.classList.remove("tiny"); el.style.width=""; w=el.offsetWidth;
-      left=vw/2-w/2; top=vh-el.offsetHeight-54;
+      el.classList.remove("above","tiny"); el.style.width=""; w=el.offsetWidth; h=el.offsetHeight;
+      left=vw/2-w/2; top=vh-h-54;
     }
-    top=Math.max(8,Math.min(top,vh-el.offsetHeight-8));
+    top=Math.max(8,Math.min(top,vh-h-8));
     el.style.left=left+"px"; el.style.top=top+"px";
   }
   setInterval(place,120);
