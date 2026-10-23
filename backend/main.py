@@ -163,3 +163,5 @@ if (ROOT / "frontend/dist").exists():
     app.mount("/", StaticFiles(directory=ROOT / "frontend/dist", html=True), name="web")
 
 from .overlay import register as _reg_overlay; _reg_overlay(app, STORE, ff, guard)
+
+from .layers import register as _reg_layers; _reg_layers(app, STORE, ff, guard)
