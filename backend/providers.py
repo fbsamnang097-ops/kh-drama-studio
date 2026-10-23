@@ -73,7 +73,6 @@ def _base(cfg, role, p):
     if not b: raise KeyError(f"Base URL ({role})")
     return b.rstrip("/")
 
-open_safe = open   # បើក file ធម្មតា
 
 # ---------- Speech-to-Text ----------
 _WM = None
