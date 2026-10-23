@@ -163,3 +163,93 @@ tab **🔲 Blur** សម្រាប់បិទបាំងតំបន់ដ�
 - Disk ត្រូវលុបពេល service ដេកហើយភ្ញាក់ឡើងវិញ ដូច្នេះ Export និង Apply (Layers / Blur) ត្រូវធ្វើក្នុង session តែមួយ
 - Apply ត្រូវ encode វីដេអូម្តងទៀត ហើយ free tier យឺត សូមសាកល្បងជាមួយវីដេអូខ្លីសិន
 - Auto tracking ពិតៗ (OpenCV) មិនទាន់មាន ព្រោះធ្ងន់ពេកសម្រាប់ RAM 512MB
+
+* * *
+
+## Clone និងរត់លើកដំបូង (Mac / Windows)
+
+### 1. តម្រូវការ
+
+| ឧបករណ៍ | កំណែ | ពិនិត្យ |
+|--------|------|---------|
+| Git | ណាក៏បាន | `git --version` |
+| Python | 3.10+ (សាកល្បង 3.12) | `python3 --version` (Mac) / `python --version` (Windows) |
+| Node.js | 18+ | `node --version` |
+| FFmpeg | ណាក៏បាន (ត្រូវនៅក្នុង PATH) | `ffmpeg -version` |
+
+### 2. macOS
+
+```
+# ដំឡើងឧបករណ៍ (ត្រូវការ Homebrew: https://brew.sh)
+brew install git python node ffmpeg
+
+# Clone
+git clone https://github.com/fbsamnang097-ops/kh-drama-studio.git
+cd kh-drama-studio
+
+# Python environment
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Build frontend
+cd frontend && npm install && npm run build && cd ..
+
+# រត់
+PYTHONPATH=. python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+### 3. Windows (PowerShell)
+
+```
+# ដំឡើងឧបករណ៍ (បិទ ហើយបើក PowerShell ឡើងវិញក្រោយដំឡើង)
+winget install Git.Git Python.Python.3.12 OpenJS.NodeJS Gyan.FFmpeg
+
+# Clone
+git clone https://github.com/fbsamnang097-ops/kh-drama-studio.git
+cd kh-drama-studio
+
+# Python environment
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+# Build frontend
+cd frontend; npm install; npm run build; cd ..
+
+# រត់
+$env:PYTHONPATH = "."
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+បើ PowerShell ទប់ស្កាត់ការ activate សូមរត់ម្តង៖ `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+
+### 4. បើកប្រើ
+
+បើក http://127.0.0.1:8000 ចុចរូប ⚙️ រួចដាក់ API key (បកប្រែ, STT, TTS)។ Key រក្សាទុកក្នុងម៉ាស៊ីនអ្នកតែប៉ុណ្ណោះ (មិនត្រូវ commit ទៅ GitHub)។
+
+### 5. ធ្វើបច្ចុប្បន្នភាពកូដ (ក្រោយ clone រួច)
+
+ចូលទៅក្នុង folder `kh-drama-studio` រួច activate environment ជាមុន (Mac: `source .venv/bin/activate`, Windows: `.venv\Scripts\Activate.ps1`)៖
+
+```
+git pull
+pip install -r requirements.txt
+cd frontend && npm install && npm run build && cd ..
+```
+
+(Windows ប្រើ `;` ជំនួស `&&`: `cd frontend; npm install; npm run build; cd ..`) រួច restart server ហើយ refresh browser ដោយ `Cmd+Shift+R` (Mac) ឬ `Ctrl+Shift+R` (Windows)។
+
+### 6. ដំណោះស្រាយបញ្ហាទូទៅ
+
+| បញ្ហា | ដំណោះស្រាយ |
+|-------|-----------|
+| `python: command not found` (Mac) | ប្រើ `python3` មុន activate ហើយបន្ទាប់ពី `source .venv/bin/activate` ប្រើ `python` បាន |
+| `python` មិនស្គាល់ (Windows) | ប្រើ `py -3 -m venv .venv` ឬដំឡើង Python ម្តងទៀត ហើយ tick "Add to PATH" |
+| `ffmpeg: command not found` | ដំឡើង FFmpeg (Mac: `brew install ffmpeg`, Windows: `winget install Gyan.FFmpeg`) រួចបើក terminal ថ្មី |
+| `ModuleNotFoundError: backend` | ត្រូវរត់ពី root folder ហើយកំណត់ `PYTHONPATH=.` (Mac) ឬ `$env:PYTHONPATH = "."` (Windows) |
+| Port 8000 ត្រូវបានប្រើរួច | ប្តូរទៅ `--port 8001` ហើយបើក http://127.0.0.1:8001 |
+| ទំព័រទទេ ឬ UI ចាស់ | រត់ `npm run build` ម្តងទៀត រួច hard refresh |
+| Apply Layers / Blur បរាជ័យ | ត្រូវ Export វីដេអូជាមុន ហើយធ្វើក្នុង session តែមួយ |
+
+ចំណាំ៖ ផ្នែក **Web App** ខាងលើមានជំហានដូចគ្នា ហើយផ្នែកនេះបន្ថែមការ update និងដំណោះស្រាយបញ្ហា។
