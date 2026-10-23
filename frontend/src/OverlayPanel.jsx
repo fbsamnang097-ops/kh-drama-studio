@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import BlurPanel from "./BlurPanel.jsx";
 
 const POS = {
   "Top Left": [3, 4], "Top Center": [50, 4], "Top Right": [97, 4],
@@ -29,6 +30,7 @@ function Slider({ label, value, set, min = 0, max = 100 }) {
 export default function OverlayPanel({ video }) {
   const [st, setSt] = useState(init);
   const [tab, setTab] = useState("logo");
+  const [blurTab, setBlurTab] = useState(false);
   const [busy, setBusy] = useState("");
   const [host, setHost] = useState(null);
   const [textPng, setTextPng] = useState("");
@@ -123,18 +125,23 @@ export default function OverlayPanel({ video }) {
       maxWidth: 900, maxHeight: 260, background: "rgba(255,255,255,.04)", border: `1px solid ${CYAN}66`, boxShadow: "0 0 14px rgba(34,211,238,.15)" }}>
       <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
         {LAYERS.map((L) => (
-          <button key={L.k} onClick={() => setTab(L.k)} className="rounded-lg px-2.5 py-1 text-xs font-semibold" style={{
+          <button key={L.k} onClick={() => { setTab(L.k); setBlurTab(false); }} className="rounded-lg px-2.5 py-1 text-xs font-semibold" style={{
             background: tab === L.k ? `${L.c}33` : "transparent", border: `1px solid ${tab === L.k ? L.c : "#ffffff22"}`, color: L.c }}>
             {L.label}{st[L.k].on ? " ●" : ""}
           </button>
         ))}
-        <label className="flex items-center gap-1.5 cursor-pointer ml-auto" style={{ color: cur.c }}>
+        <button onClick={() => setBlurTab(true)} className="rounded-lg px-2.5 py-1 text-xs font-semibold" style={{
+          background: blurTab ? "#f472b633" : "transparent", border: `1px solid ${blurTab ? "#f472b6" : "#ffffff22"}`, color: "#f472b6" }}>
+          🔲 Blur
+        </button>
+        {false && (<></>)}
+        <label className="flex items-center gap-1.5 cursor-pointer ml-auto" style={{ color: cur.c, display: blurTab ? "none" : undefined }}>
           <input type="checkbox" checked={s.on} onChange={(e) => upd(tab, { on: e.target.checked })} style={{ accentColor: CYAN }} />
           <span>Enable</span>
         </label>
       </div>
 
-      <div className="grid gap-x-4" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)" }}>
+      <div className={blurTab ? "hidden" : "grid gap-x-4"} style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)" }}>
         <div className="space-y-1.5 min-w-0">
           {isText ? (
             <>
@@ -176,6 +183,7 @@ export default function OverlayPanel({ video }) {
           <Slider label="Opacity (%)" value={s.op} set={(v) => upd(tab, { op: v })} />
         </div>
       </div>
+      {blurTab && <BlurPanel video={video} host={host} />}
       {previews}
     </div>
   );

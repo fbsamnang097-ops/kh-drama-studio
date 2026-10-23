@@ -165,3 +165,5 @@ if (ROOT / "frontend/dist").exists():
 from .overlay import register as _reg_overlay; _reg_overlay(app, STORE, ff, guard)
 
 from .layers import register as _reg_layers; _reg_layers(app, STORE, ff, guard)
+
+from .blur import register as _reg_blur; _reg_blur(app, STORE, ff, guard)
