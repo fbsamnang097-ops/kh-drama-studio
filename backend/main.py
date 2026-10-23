@@ -5,8 +5,8 @@ from pydantic import BaseModel
 from . import providers as P
 from . import subs as SB
 
-ROOT = pathlib.Path(__file__).parent.parent
-STORE = ROOT / "storage"; STORE.mkdir(exist_ok=True)
+from .paths import ROOT, STORE   # exe: STORE ក្នុង folder អ្នកប្រើ
+
 app = FastAPI(title="KH Drama Studio AI")
 
 def ff(*a):
@@ -167,3 +167,4 @@ from .overlay import register as _reg_overlay; _reg_overlay(app, STORE, ff, guar
 from .layers import register as _reg_layers; _reg_layers(app, STORE, ff, guard)
 
 from .blur import register as _reg_blur; _reg_blur(app, STORE, ff, guard)
+from .appinfo import register as _reg_info; _reg_info(app)

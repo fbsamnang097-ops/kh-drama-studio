@@ -253,3 +253,35 @@ cd frontend && npm install && npm run build && cd ..
 | Apply Layers / Blur បរាជ័យ | ត្រូវ Export វីដេអូជាមុន ហើយធ្វើក្នុង session តែមួយ |
 
 ចំណាំ៖ ផ្នែក **Web App** ខាងលើមានជំហានដូចគ្នា ហើយផ្នែកនេះបន្ថែមការ update និងដំណោះស្រាយបញ្ហា។
+
+* * *
+
+## ទាញយកកម្មវិធី (មិនបាច់ដំឡើង Python)
+
+ទាញយកពីទំព័រ [Releases](https://github.com/fbsamnang097-ops/kh-drama-studio/releases)៖
+
+| ប្រព័ន្ធ | File |
+|---------|------|
+| Windows | `kh-drama-studio.exe` |
+| Mac Intel | `KH-Drama-Studio-mac-intel.zip` |
+| Mac Apple Silicon (M1 / M2 / M3 / M4) | `KH-Drama-Studio-mac-arm64.zip` |
+
+ដឹងថា Mac ជាប្រភេទណា៖ ម៉ឺនុយ Apple → About This Mac → មើល Chip (Apple M... ឬ Intel)។
+
+**Windows៖** ចុចពីរដងលើ `.exe`។ បើឃើញ "Windows protected your PC" ចុច **More info → Run anyway** (កម្មវិធីមិនទាន់មាន certificate បង់ប្រាក់)។ បង្អួចខ្មៅនឹងបើក ហើយ browser បើកដោយស្វ័យប្រវត្តិ។ បិទបង្អួចខ្មៅដើម្បីបញ្ចប់កម្មវិធី។
+
+**Mac៖** Unzip រួច **right-click លើ file → Open → Open** (ត្រូវធ្វើតែលើកដំបូង)។ បើ Mac និយាយថា file "damaged" ឬមិនបើក សូមរត់ក្នុង Terminal៖ `xattr -dr com.apple.quarantine ~/Downloads/KH-Drama-Studio-mac-arm64` ហើយ `chmod +x ~/Downloads/KH-Drama-Studio-mac-arm64` (ប្តូរឈ្មោះ file តាម Mac របស់អ្នក) រួចរត់ `~/Downloads/KH-Drama-Studio-mac-arm64`។
+
+បើកលើកដំបូងអាចយឺត 5-15 វិនាទី។ ចុចរូប ⚙️ ដើម្បីដាក់ API key (បកប្រែ, STT, TTS)។
+
+**ទិន្នន័យ និង key** ត្រូវរក្សាក្នុង folder ផ្ទាល់ខ្លួនរបស់អ្នកប្រើ មិនមែនក្នុង app ទេ៖ Windows `%APPDATA%\KHDramaStudio`, Mac `~/Library/Application Support/KHDramaStudio`។
+
+**ដែនកំណត់៖** កំណែ app មិនមាន Whisper (local) និង demucs ទេ ដូច្នេះ STT ត្រូវប្រើ Groq / OpenAI តាម API key។ app មិនទាន់ sign ដូច្នេះប្រព័ន្ធអាចព្រមាន។ app មាន FFmpeg (GPL, https://ffmpeg.org) ភ្ជាប់មកជាមួយ។
+
+### ចេញកំណែថ្មី (សម្រាប់អ្នកអភិវឌ្ឍ)
+
+1. ប្តូរលេខក្នុង file `VERSION` (ឧ. `1.0.2`) ហើយ commit
+2. `git tag v1.0.2 && git push origin v1.0.2`
+3. GitHub Actions (tab Actions → Build apps) នឹង build Windows, Mac Intel, Mac ARM ហើយដាក់ file ក្នុង Releases ដោយស្វ័យប្រវត្តិ
+
+tag ត្រូវដូច `VERSION` (`v1.0.2` ↔ `1.0.2`) បើមិនដូច្នេះ build នឹងបរាជ័យ។ លេខនេះបង្ហាញក្នុង footer របស់ app ផងដែរ។

@@ -1,7 +1,7 @@
 from .utils import open_safe
 import json, os, pathlib, asyncio, base64, time, httpx
 from xml.sax.saxutils import escape
-SF = pathlib.Path(__file__).parent / "settings.json"
+from .paths import SETTINGS as SF   # exe: settings ក្នុង folder អ្នកប្រើ
 def load():
     d = json.loads(SF.read_text()) if SF.exists() else {}
     d.update({k[3:].lower(): v for k, v in os.environ.items() if k.startswith("KH_") and v})   # Render env vars

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import BlurPanel from "./BlurPanel.jsx";
+import Footer from "./Footer.jsx";
 
 const POS = {
   "Top Left": [3, 4], "Top Center": [50, 4], "Top Right": [97, 4],
@@ -186,6 +187,7 @@ export default function OverlayPanel({ video }) {
         </div>
       </div>
       {blurTab && <BlurPanel video={video} host={host} />}
+      <Footer />
       {previews}
     </div>
   );
