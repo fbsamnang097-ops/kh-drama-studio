@@ -127,8 +127,8 @@ tab 4 ក្នុងប្រអប់តែមួយ ហើយ layer នីម
 
 | Layer | ពិពណ៌នា |
 |-------|---------|
-| 🏷️ Logo | រូប PNG / JPG / WebP |
-| ⭐ Sponsor | រូប PNG / JPG / WebP |
+| 🏷️ Logo | រូប PNG / JPG / WebP ឬវីដេអូ MP4 (loop) |
+| ⭐ Sponsor | រូប PNG / JPG / WebP ឬវីដេអូ MP4 (loop) |
 | 🖼️ Overlay | រូប ឬ GIF មានចលនា |
 | ©️ Khmer Text | វាយអក្សរខ្មែរ ជ្រើសពណ៌បាន (គូរជា PNG ក្នុង browser មិនពឹង font របស់ FFmpeg) |
 

@@ -3,6 +3,7 @@ import pathlib, subprocess
 from fastapi import APIRouter, UploadFile, HTTPException
 
 EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+VID = {".mp4"}   # វីដេអូ: អនុញ្ញាតតែ logo / sponsor
 KINDS = ["logo", "sponsor", "overlay", "text"]   # លំដាប់ដាក់ (ក្រោយ = លើគេ)
 
 def register(app, STORE, ff, guard):
@@ -12,11 +13,14 @@ def register(app, STORE, ff, guard):
     async def layer_upload(id: str, kind: str, file: UploadFile):
         if kind not in KINDS: raise HTTPException(400, "kind មិនត្រឹមត្រូវ")
         ext = ".png" if kind == "text" else pathlib.Path(file.filename or "").suffix.lower()
-        if ext not in EXT: raise HTTPException(400, "ត្រូវជា PNG / JPG / JPEG / WebP / GIF")
+        if ext not in EXT and not (ext in VID and kind in ("logo", "sponsor")):
+            raise HTTPException(400, "ត្រូវជា PNG / JPG / JPEG / WebP / GIF (Logo និង Sponsor ទទួល MP4 ផងដែរ)")
         vid = pathlib.Path(id).name
         for old in STORE.glob(f"{vid}_ly_{kind}.*"): old.unlink(missing_ok=True)
         name = f"{vid}_ly_{kind}{ext}"
-        (STORE / name).write_bytes(await file.read())
+        with open(STORE / name, "wb") as out:   # សរសេរម្តង 1MB មិនផ្ទុកទាំង file ក្នុង RAM
+            while chunk := await file.read(1024 * 1024):
+                out.write(chunk)
         return {"url": f"/files/{name}"}
 
     @r.post("/api/layers_apply")
@@ -39,7 +43,8 @@ def register(app, STORE, ff, guard):
         inputs, flt, base = [], [], "[0:v]"
         for i, (L, n) in enumerate(items):
             ow = max(2, int(w * max(1.0, g(L, "size", 25)) / 100) // 2 * 2)
-            inputs += (["-ignore_loop", "0"] if n.lower().endswith(".gif") else ["-loop", "1"]) + ["-i", n]
+            nl = n.lower()
+            inputs += (["-stream_loop", "-1"] if nl.endswith(".mp4") else ["-ignore_loop", "0"] if nl.endswith(".gif") else ["-loop", "1"]) + ["-i", n]
             flt.append(f"[{i+1}:v]format=rgba,scale={ow}:-2,colorchannelmixer=aa={g(L, 'opacity', 90) / 100:.3f}[l{i}]")
             flt.append(f"{base}[l{i}]overlay=x='(W-w)*{g(L, 'x', 50) / 100:.4f}':y='(H-h)*{g(L, 'y', 85) / 100:.4f}':shortest=1[v{i}]")
             base = f"[v{i}]"

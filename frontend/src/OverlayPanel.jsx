@@ -115,7 +115,9 @@ export default function OverlayPanel({ video }) {
   const previews = host ? createPortal(<>{LAYERS.map((L, i) => {
     const s = st[L.k], src = L.k === "text" ? textPng : s.url;
     if (!s.on || !src) return null;
-    return <img key={L.k} src={src} alt="" draggable={false} style={{ position: "absolute", left: `${s.x}%`, top: `${s.y}%`, width: `${s.size}%`,
+    const isVid = /\.mp4($|\?)/i.test(src);
+    const Tg = isVid ? "video" : "img";
+    return <Tg key={L.k} src={src} {...(isVid ? { autoPlay: true, loop: true, muted: true, playsInline: true } : { alt: "", draggable: false })} style={{ position: "absolute", left: `${s.x}%`, top: `${s.y}%`, width: `${s.size}%`,
       transform: `translate(-${s.x}%, -${s.y}%)`, opacity: s.op / 100, pointerEvents: "none", zIndex: 5 + i }} />;
   })}</>, host) : null;
 
@@ -155,7 +157,7 @@ export default function OverlayPanel({ video }) {
               <div className="flex gap-2">
                 <label className="flex-1 text-center rounded-lg py-1.5 cursor-pointer font-semibold truncate" style={{ background: `${cur.c}22`, border: `1px solid ${cur.c}`, color: cur.c }}>
                   📁 {busy === "upload" ? "កំពុង Upload..." : s.url ? "Change Asset" : "Select Asset"}
-                  <input ref={fileRef} type="file" hidden accept=".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif" onChange={(e) => pick(tab, e.target.files?.[0])} />
+                  <input ref={fileRef} type="file" hidden accept={tab === "logo" || tab === "sponsor" ? ".png,.jpg,.jpeg,.webp,.gif,.mp4,image/png,image/jpeg,image/webp,image/gif,video/mp4" : ".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif"} onChange={(e) => pick(tab, e.target.files?.[0])} />
                 </label>
                 <button className="rounded-lg px-3 font-semibold" onClick={() => upd(tab, { url: "", name: "", on: false })} disabled={!s.url}
                   style={{ background: "rgba(244,63,94,.12)", border: `1px solid ${RED}`, color: RED, opacity: s.url ? 1 : 0.5 }}>✕ Remove</button>
