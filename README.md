@@ -114,3 +114,52 @@ pip install demucs
 
 លើ Mac បើ install បរាជ័យពេល build `sphn` សូមប្រើ៖
 `CMAKE_POLICY_VERSION_MINIMUM=3.5 pip install demucs`
+
+* * *
+
+## មុខងារនៅលើវីដេអូ Export (Layers និង Blur)
+
+បន្ទាប់ពី Export វីដេអូ (`<id>_km.mp4`) អ្នកអាចដាក់ layer និង blur បន្ថែមតាមប្រអប់ក្រោម preview។
+
+### 🎞️ Layers (Logo / Sponsor / Overlay / Khmer Text)
+
+tab 4 ក្នុងប្រអប់តែមួយ ហើយ layer នីមួយៗមានការកំណត់ផ្ទាល់ខ្លួន (បើក/បិទ, រូប, ទីតាំង, X, Y, ទំហំ, opacity) មិនជះឥទ្ធិពលគ្នា។
+
+| Layer | ពិពណ៌នា |
+|-------|---------|
+| 🏷️ Logo | រូប PNG / JPG / WebP |
+| ⭐ Sponsor | រូប PNG / JPG / WebP |
+| 🖼️ Overlay | រូប ឬ GIF មានចលនា |
+| ©️ Khmer Text | វាយអក្សរខ្មែរ ជ្រើសពណ៌បាន (គូរជា PNG ក្នុង browser មិនពឹង font របស់ FFmpeg) |
+
+- ចុច **🎬 Apply Layers to Exported Video** ហើយ layer ទាំងអស់ដែលបានបើកត្រូវដាក់ម្តងតែមួយលើកតាមលំដាប់ Logo → Sponsor → Overlay → Text
+- លទ្ធផល៖ `<id>_km_ly.mp4` (file ថ្មី មិនជំនួសវីដេអូ Export ដើម)
+- Backend: `backend/layers.py` (`POST /api/layer`, `POST /api/layers_apply`)
+- Frontend: `frontend/src/OverlayPanel.jsx`
+
+### 🔲 Blur (ថេរ ឬដើរតាមចលនា)
+
+tab **🔲 Blur** សម្រាប់បិទបាំងតំបន់ដែលមិនចង់ឱ្យឃើញ (មុខ, ឈ្មោះ, ស្លាក, logo)។
+
+- **Add Blur Box** ហើយ **ចាប់ទាញ** ប្រអប់ដោយផ្ទាល់លើ preview។ ទាញការ៉េមាសជ្រុងក្រោមស្តាំដើម្បីប្តូរទំហំ (ដំណើរការទាំង mouse និង touch)
+- កំណត់ទំហំ, កម្រិតព្រិល, និងពេលចាប់ផ្តើម/បញ្ចប់ (Start/End = ឥឡូវ)
+- **🎯 Follow motion**: ប្រសិនបើវត្ថុរើ សូម play ទៅចំណុចផ្សេងៗ រួចទាញប្រអប់តាមវត្ថុ 3-5 ចំណុច។ ប្រព័ន្ធចាប់ keyframe ហើយគណនាចលនាកណ្តាលចន្លោះឱ្យ (មិនប្រើ AI)
+- ចុច **🔲 Apply Blur to Exported Video** ហើយលទ្ធផលជា `<id>_km_bl.mp4`
+- បើបាន Apply Layers រួច Blur ដាក់លើ `_km_ly.mp4`។ ដូច្នេះ Blur អាចបាំង Logo/Text ក្នុងតំបន់ព្រិល។ ប្រសិនបើមិនចង់ ត្រូវ Apply Blur មុន Apply Layers
+- Backend: `backend/blur.py` (`POST /api/blur_apply`)
+- Frontend: `frontend/src/BlurPanel.jsx`
+
+ចំណាំ៖ ការកំណត់ Layers និង Blur រក្សាក្នុង browser តែប៉ុណ្ណោះ (មិនទាន់ save ទៅ project) ហើយ preview ក្នុង browser គ្រាន់តែជាការប៉ាន់ស្មាន។
+
+## Deploy លើ Render
+
+- Start command ប្រើ `uvicorn backend.main:app` ដូច្នេះ import ក្នុង `backend/` ត្រូវប្រើ relative (`from .layers import ...`)
+- **ពេលបន្ថែម file ថ្មី ត្រូវ `git add` វាជានិច្ច** (ឧ. `backend/layers.py`, `backend/blur.py`) បើមិនដូច្នេះទេ deploy នឹងដួលដោយ `ModuleNotFoundError`
+- ការកំណត់ដែលមាន key ត្រូវដាក់ក្នុង Render → **Environment** ជាអថេរមានបុព្វបទ `KH_` (ត្រូវបានអានជាការកំណត់ដូចក្នុង ⚙️)។ **កុំដាក់ key ក្នុង file ណាមួយនៅ GitHub** ហើយបើ key ណាធ្លាប់ឡើង GitHub ត្រូវ revoke រួចបង្កើតថ្មី
+- STT អាចប្រើ Groq / OpenAI / custom (OpenAI-compatible) ឬ `local` (faster-whisper ធ្ងន់ មិនសមនឹង free tier)
+
+### ដែនកំណត់ Render free tier
+
+- Disk ត្រូវលុបពេល service ដេកហើយភ្ញាក់ឡើងវិញ ដូច្នេះ Export និង Apply (Layers / Blur) ត្រូវធ្វើក្នុង session តែមួយ
+- Apply ត្រូវ encode វីដេអូម្តងទៀត ហើយ free tier យឺត សូមសាកល្បងជាមួយវីដេអូខ្លីសិន
+- Auto tracking ពិតៗ (OpenCV) មិនទាន់មាន ព្រោះធ្ងន់ពេកសម្រាប់ RAM 512MB
