@@ -79,47 +79,53 @@ export default function OverlayPanel({ video }) {
     }} />, host) : null;
 
   return (
-    <div className="rounded-xl p-3 space-y-2 text-sm" style={{
+    <div className="rounded-xl p-2 text-sm shrink-0 w-full overflow-auto" style={{
+      maxWidth: 900, maxHeight: 230,
       background: "rgba(255,255,255,.04)", border: `1px solid ${CYAN}66`, boxShadow: "0 0 14px rgba(34,211,238,.15)" }}>
-      <div className="font-semibold" style={{ color: GOLD }}>🖼️ Custom Overlay / Animated Banner</div>
-
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" checked={on} onChange={(e) => setOn(e.target.checked)} style={{ accentColor: CYAN }} />
-        <span>Enable Overlay</span>
-      </label>
-
-      <div className="flex gap-2">
-        <label className="flex-1 text-center rounded-lg py-2 cursor-pointer font-semibold" style={{
-          background: "rgba(34,211,238,.15)", border: `1px solid ${CYAN}`, color: CYAN }}>
-          📁 {busy === "upload" ? "កំពុង Upload..." : url ? "Change Asset" : "Select Asset"}
-          <input ref={fileRef} type="file" hidden accept=".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif"
-            onChange={(e) => pick(e.target.files?.[0])} />
+      <div className="flex items-center gap-3 mb-1.5">
+        <span className="font-semibold" style={{ color: GOLD }}>🖼️ Custom Overlay / Animated Banner</span>
+        <label className="flex items-center gap-1.5 cursor-pointer ml-auto">
+          <input type="checkbox" checked={on} onChange={(e) => setOn(e.target.checked)} style={{ accentColor: CYAN }} />
+          <span>Enable Overlay</span>
         </label>
-        <button className="rounded-lg px-3 font-semibold" onClick={remove} disabled={!url}
-          style={{ background: "rgba(244,63,94,.12)", border: `1px solid ${RED}`, color: RED, opacity: url ? 1 : 0.5 }}>
-          ✕ Remove
-        </button>
       </div>
-      {name && <div className="text-xs truncate" style={{ color: CYAN }}>📄 {name}</div>}
 
-      <label className="flex items-center gap-2 text-xs">
-        <span className="opacity-80" style={{ width: 64 }}>📍 Position</span>
-        <select value={pos} onChange={(e) => choosePos(e.target.value)} className="flex-1 rounded-lg px-2 py-1"
-          style={{ background: "#1a1245", border: `1px solid ${CYAN}66`, color: "#fff" }}>
-          {[...Object.keys(POS), "Custom"].map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
-      </label>
+      <div className="grid gap-x-4" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)" }}>
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex gap-2">
+            <label className="flex-1 text-center rounded-lg py-1.5 cursor-pointer font-semibold truncate" style={{
+              background: "rgba(34,211,238,.15)", border: `1px solid ${CYAN}`, color: CYAN }}>
+              📁 {busy === "upload" ? "កំពុង Upload..." : url ? "Change Asset" : "Select Asset"}
+              <input ref={fileRef} type="file" hidden accept=".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif"
+                onChange={(e) => pick(e.target.files?.[0])} />
+            </label>
+            <button className="rounded-lg px-3 font-semibold" onClick={remove} disabled={!url}
+              style={{ background: "rgba(244,63,94,.12)", border: `1px solid ${RED}`, color: RED, opacity: url ? 1 : 0.5 }}>
+              ✕ Remove
+            </button>
+          </div>
+          {name && <div className="text-xs truncate" style={{ color: CYAN }}>📄 {name}</div>}
+          <label className="flex items-center gap-2 text-xs">
+            <span className="opacity-80 shrink-0">📍 Position</span>
+            <select value={pos} onChange={(e) => choosePos(e.target.value)} className="flex-1 min-w-0 rounded-lg px-2 py-1"
+              style={{ background: "#1a1245", border: `1px solid ${CYAN}66`, color: "#fff" }}>
+              {[...Object.keys(POS), "Custom"].map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </label>
+          <button className="w-full rounded-lg py-1.5 font-semibold" onClick={apply} disabled={!url || !on || !!busy}
+            title="ចុច Export វីដេអូជាមុន រួចចុចប៊ូតុងនេះ។ លទ្ធផលជា file ថ្មី (មិនជំនួសវីដេអូ Export ដើម)"
+            style={{ background: "rgba(251,191,36,.15)", border: `1px solid ${GOLD}`, color: GOLD, opacity: url && on ? 1 : 0.5 }}>
+            {busy === "apply" ? "កំពុងដាក់ Overlay..." : "🎬 Apply Overlay to Exported Video"}
+          </button>
+        </div>
 
-      <Slider label="X (%)" value={x} set={(v) => { setX(v); setPos("Custom"); }} />
-      <Slider label="Y (%)" value={y} set={(v) => { setY(v); setPos("Custom"); }} />
-      <Slider label="Size (%)" value={size} set={setSize} min={1} />
-      <Slider label="Opacity (%)" value={op} set={setOp} />
-
-      <button className="w-full rounded-lg py-2 font-semibold" onClick={apply} disabled={!url || !on || !!busy}
-        style={{ background: "rgba(251,191,36,.15)", border: `1px solid ${GOLD}`, color: GOLD, opacity: url && on ? 1 : 0.5 }}>
-        {busy === "apply" ? "កំពុងដាក់ Overlay..." : "🎬 Apply Overlay to Exported Video"}
-      </button>
-      <div className="text-xs opacity-60">ចុច Export វីដេអូជាមុន រួចចុចប៊ូតុងនេះ។ លទ្ធផលជា file ថ្មី (មិនជំនួសវីដេអូ Export ដើម)។</div>
+        <div className="space-y-1 min-w-0">
+          <Slider label="X (%)" value={x} set={(v) => { setX(v); setPos("Custom"); }} />
+          <Slider label="Y (%)" value={y} set={(v) => { setY(v); setPos("Custom"); }} />
+          <Slider label="Size (%)" value={size} set={setSize} min={1} />
+          <Slider label="Opacity (%)" value={op} set={setOp} />
+        </div>
+      </div>
       {preview}
     </div>
   );
