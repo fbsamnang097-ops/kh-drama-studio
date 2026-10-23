@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom";
 import { useState, useRef, useEffect, useCallback } from "react";
+import OverlayPanel from "./OverlayPanel.jsx";
 
 const api = async (path, body, isForm) => {
   const r = await fetch(path, body ? { method: "POST", ...(isForm ? { body } : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }) } : undefined);
@@ -290,6 +291,7 @@ export default function App() {
             {bgm && <button className="btn ghost text-xs" onClick={() => setBgm("")}>✕ Remove BGM</button>}
             {bgm && <label className="flex items-center gap-2 text-xs">🔊 BGM<input type="range" min="0" max="1" step="0.05" value={bgmVol} onChange={(e) => setBgmVol(+e.target.value)} className="flex-1" /></label>}
           </>
+          <OverlayPanel video={video} />
         </div>
         <div className="overflow-auto flex-1 text-sm">
           <table className="w-full table-fixed"><colgroup>{[30, 34, 62, 62, null, null, 100, 84].map((w, i) => <col key={i} style={w ? { width: w } : undefined} />)}</colgroup>

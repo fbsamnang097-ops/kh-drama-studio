@@ -161,3 +161,5 @@ def bgm_status(id: str):
 app.mount("/files", StaticFiles(directory=STORE), name="files")
 if (ROOT / "frontend/dist").exists():
     app.mount("/", StaticFiles(directory=ROOT / "frontend/dist", html=True), name="web")
+
+from .overlay import register as _reg_overlay; _reg_overlay(app, STORE, ff, guard)
