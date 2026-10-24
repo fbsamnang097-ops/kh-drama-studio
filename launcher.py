@@ -32,10 +32,12 @@ def main():
             subprocess.run([t, "-version"], check=True, capture_output=True)
         print("CHECK_OK"); return
     import uvicorn
-    port = free_port(); url = f"http://127.0.0.1:{port}"
+    _p = sys.argv[sys.argv.index("--port") + 1] if "--port" in sys.argv[:-1] else None
+    port = int(_p) if _p else free_port(); url = f"http://127.0.0.1:{port}"
     print(f"KH Drama Studio -> {url}")
     print("បិទបង្អួចនេះដើម្បីបញ្ចប់ / Close this window to quit")
-    threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+    if "--no-browser" not in sys.argv:
+        threading.Timer(1.5, lambda: webbrowser.open(url)).start()
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
 
 if __name__ == "__main__":

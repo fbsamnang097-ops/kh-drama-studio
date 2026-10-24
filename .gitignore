@@ -30,3 +30,5 @@ demucs_out/
 /dist/
 *.spec
 /bin/
+/dist-backend/
+/release/

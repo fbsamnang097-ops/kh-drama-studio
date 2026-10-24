@@ -1,0 +1,32 @@
+{
+  "name": "kh-drama-studio",
+  "version": "1.0.1",
+  "description": "KH Drama Studio desktop app",
+  "author": "Mr. Samnang",
+  "main": "electron/main.js",
+  "scripts": { "start": "electron ." },
+  "dependencies": { "electron-updater": "^6.3.9" },
+  "devDependencies": { "electron": "^32.2.0", "electron-builder": "^25.1.8" },
+  "build": {
+    "appId": "com.khdramastudio.app",
+    "productName": "KH Drama Studio",
+    "directories": { "output": "release" },
+    "files": ["electron/**/*", "package.json"],
+    "extraResources": [
+      { "from": "dist-backend/kh-server", "to": "backend" },
+      { "from": "bin", "to": "bin" }
+    ],
+    "publish": [{ "provider": "github", "owner": "fbsamnang097-ops", "repo": "kh-drama-studio" }],
+    "win": { "target": "nsis" },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "KH-Drama-Studio-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.video",
+      "artifactName": "KH-Drama-Studio-${version}-${arch}.${ext}"
+    }
+  }
+}
