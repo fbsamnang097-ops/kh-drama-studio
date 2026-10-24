@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from . import providers as P
 from . import subs as SB
+from . import graph as G
 
 from .paths import ROOT, STORE   # exe: STORE ក្នុង folder អ្នកប្រើ
 
@@ -70,18 +71,33 @@ def _q(q, quality, src):
             print("probe failed:", e, flush=True)
     return q
 
-class Ex(BaseModel): id: str; segments: list[dict]; subs: bool = True; blank: str = ""; bgm: str = ""; quality: str = ""   # segments: {start,end,km,audio,png}
+def _layers(b):
+    """Khmer Text (data URL) → PNG, រៀប layer តាមលំដាប់ Logo→Sponsor→Overlay→Text"""
+    G.prepare(STORE, b.id, b.layers)
+    return G.layer_inputs(STORE, b.layers), [bx for bx in (b.boxes or []) if isinstance(bx, dict)]
+
+class Ex(BaseModel):
+    id: str; segments: list[dict]; subs: bool = True; blank: str = ""; bgm: str = ""; quality: str = ""
+    layers: list[dict] = []   # [{kind, file|data, x, y, size, opacity}] — Logo / Sponsor / Overlay / Khmer Text
+    boxes: list[dict] = []    # [{x,y,w,h,strength,start,end,follow,kf}] — Blur
 @app.post("/api/export")
 def export(b: Ex):
-    src, out, srt = STORE / f"{b.id}.mp4", STORE / f"{b.id}_km.mp4", STORE / f"{b.id}.srt"
+    """Export ទាំងអស់ក្នុង pass តែមួយ: អក្សរខ្មែរ + សំឡេង + BGM + Layer + Blur"""
+    vid = pathlib.Path(b.id).name
+    src, out, srt = STORE / f"{vid}.mp4", STORE / f"{vid}_km.mp4", STORE / f"{vid}.srt"
     t = lambda s: f"{int(s//3600):02}:{int(s%3600//60):02}:{int(s%60):02},{int(s*1000)%1000:03}"
     srt.write_text("\n".join(f"{i+1}\n{t(s['start'])} --> {t(s['end'])}\n{s['km']}\n" for i, s in enumerate(b.segments)), encoding="utf-8")
     clips = [s for s in b.segments if s.get("audio")]
     if not clips: raise HTTPException(400, "សូមចុច Generate Khmer Audio ជាមុន")
-    track = SB.write_track(STORE, b.id, b.segments, b.blank) if (b.subs and b.blank) else None
-    q = P.TIERS[P.tier(P.load())]["export"]   # Standard = លឿន, Premium = គុណភាពខ្ពស់
-    guard(lambda: ff(*SB.export_args(src.name, clips, track, out.name, _q(q, b.quality, src.name), _bgm(b.bgm))))
-    return {"url": f"/files/{out.name}"}
+    track = SB.write_track(STORE, vid, b.segments, b.blank) if (b.subs and b.blank) else None
+    q = _q(P.TIERS[P.tier(P.load())]["export"], b.quality, src.name)   # Standard = លឿន, Premium = គុណភាពខ្ពស់
+    layers, boxes = _layers(b)
+    bgm = _bgm(b.bgm)
+    need_px = bool(layers or boxes or q.get("hd") or bgm)
+    W, H = G.probe(STORE, src.name) if need_px else (0, 0)
+    dur = G.duration(STORE, src.name) if bgm else 0.0
+    guard(lambda: ff(*SB.export_args(src.name, clips, track, out.name, q, bgm, layers, boxes, W, H, dur)))
+    return {"url": f"/files/{out.name}", "layers": G.wm_order(b.layers), "blur": len(boxes)}
 
 class TE(BaseModel): segments: list[dict]; kind: str = "mp3"; bgm: str = ""   # segments: {n,start,end,zh,km,char,audio}
 @app.post("/api/tts_export")
@@ -167,4 +183,6 @@ from .overlay import register as _reg_overlay; _reg_overlay(app, STORE, ff, guar
 from .layers import register as _reg_layers; _reg_layers(app, STORE, ff, guard)
 
 from .blur import register as _reg_blur; _reg_blur(app, STORE, ff, guard)
+
+from .finish import register as _reg_finish; _reg_finish(app, STORE, ff, guard)
 from .appinfo import register as _reg_info; _reg_info(app)
