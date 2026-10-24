@@ -1118,4 +1118,11 @@ background:conic-gradient(from var(--lda),transparent 0 50%,#ec4899 68%,#fbbf24 
   };
 })();
 </script>
+<script id="kh-verjs">
+fetch("/api/version").then(function(r){return r.json()}).then(function(j){
+  var v=j.version; if(!v) return;
+  var s=document.querySelector("#kh-foot span");
+  if(s) s.textContent=(/^\d/.test(v)?"v"+v:v)+" \u00b7 "+s.textContent;
+}).catch(function(){});
+</script>
 </body></html>
