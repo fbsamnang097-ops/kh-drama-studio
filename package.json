@@ -21,12 +21,12 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "artifactName": "KH-Drama-Studio-Setup-${version}.${ext}"
+      "artifactName": "KH-Drama-Studio-v${version}.${ext}"
     },
     "mac": {
       "target": ["dmg"],
       "category": "public.app-category.video",
-      "artifactName": "KH-Drama-Studio-${version}-${arch}.${ext}"
+      "artifactName": "KH-Drama-Studio-v${version}-${arch}.${ext}"
     }
   }
 }
