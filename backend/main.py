@@ -65,9 +65,10 @@ def characters():
     """បញ្ជីតួអង្គ + ពណ៌ + សំឡេង សម្រាប់ UI"""
     out = []
     for c in C.CHARS:
-        (gender, rate, pitch), _ = P.char_profile(c)
+        (gender, rate, pitch, volume), _ = P.char_profile(c)
         out.append({"char": c, "label": C.LABELS[c], "color": C.COLORS[c],
-                    "voice": gender, "rate": rate, "pitch": pitch})
+                    "voice": gender, "rate": rate, "pitch": pitch, "volume": volume,
+                    "voiceName": P.VOICE_LABEL.get(c, gender)})
     return {"characters": out, "default": C.NARR}
 
 class Tr(BaseModel): lines: list[str]

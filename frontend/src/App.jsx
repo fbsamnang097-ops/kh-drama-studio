@@ -408,7 +408,7 @@ export default function App() {
       {/* ២. Subtitle Editor */}
       <section className="pnl pnl-violet p-3 pt-4 flex flex-col min-h-0 min-w-0">
         <div className="flex gap-2 mb-2 flex-wrap items-center">
-          <B c="violet" onClick={addText}>+ Add Text</B><B c="red" onClick={del}>Delete</B><B c="amber" onClick={findReplace}>Find &amp; Replace</B><B c="pink" onClick={scanChars}>🔍 Scan Characters (ឥតគិតថ្លៃ)</B>
+          <B c="violet" onClick={addText}>+ Add Text</B><B c="red" onClick={del}>Delete</B><B c="amber" onClick={findReplace}>Find &amp; Replace</B><B c="pink" onClick={scanChars}>🔍 ស្កេនតួអង្គ</B>
           <span className="text-xs opacity-70">{busy}</span>
           {castMsg && <span className="text-xs" style={{ color: "#6ee7b7" }}>{castMsg}</span>}
 
@@ -439,13 +439,12 @@ export default function App() {
                 <td><textarea rows={2} className="w-full resize-none leading-snug" value={s.zh} onChange={(e) => patch(s.id, { zh: e.target.value })} /></td>
                 <td><textarea rows={2} className="w-full resize-none leading-snug" value={s.km} onChange={(e) => patch(s.id, { km: e.target.value, status: "Pending", audio: "" })} /></td>
                 <td className="whitespace-nowrap">
-                  <i className="dot" style={{ background: CC(s.char) }} title={s.conf ? `ជឿជាក់ ${Math.round(s.conf * 100)}%` : ""} />
-                  <select className="w-[104px] rounded px-1 py-0.5 text-xs" value={CHAR_LABEL[s.char] ? s.char : "旁白"}
-                    title={s.conf ? `Auto-scan ជឿជាក់ ${Math.round(s.conf * 100)}% · អាចកែបាន` : "ជ្រើសតួអង្គ"}
-                    style={{ background: "#1a1245", border: `1px solid ${CC(s.char)}88`, color: "#fff" }}
-                    onChange={(e) => patch(s.id, { char: e.target.value, manualChar: true })}>
-                    {CHARS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-                  </select>
+                  <span className="charTag"
+                    title={`${CHAR_LABEL[s.char] || s.char}${s.conf ? ` · Auto-scan ជឿជាក់ ${Math.round(s.conf * 100)}%` : ""}`}
+                    style={{ borderColor: `${CC(s.char)}88`, background: `${CC(s.char)}22`, color: CC(s.char) }}>
+                    <i className="dot" style={{ background: CC(s.char) }} />
+                    {CHAR_LABEL[s.char] || s.char}
+                  </span>
                 </td>
                 <td><span className={`chip chip-${s.status}`}>{s.status}</span></td>
               </tr>))}</tbody>
