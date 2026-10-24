@@ -1122,7 +1122,7 @@ background:conic-gradient(from var(--lda),transparent 0 50%,#ec4899 68%,#fbbf24 
 fetch("/api/version").then(function(r){return r.json()}).then(function(j){
   var v=j.version; if(!v) return;
   var s=document.querySelector("#kh-foot span");
-  if(s) s.textContent=(/^\d/.test(v)?"v"+v:v)+" \u00b7 "+s.textContent;
+  if(s) s.textContent=s.textContent.replace("KH Drama Studio","KH Drama Studio "+(/^\d/.test(v)?"v"+v:v));
 }).catch(function(){});
 </script>
 </body></html>
