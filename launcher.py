@@ -2,8 +2,6 @@
 import os, sys, socket, threading, webbrowser, pathlib, subprocess, multiprocessing
 
 FROZEN = bool(getattr(sys, "frozen", False))
-if FROZEN and sys.argv[1:2] == ["-m"]:
-    sys.exit(1)   # demucs មិនមានក្នុង exe → កុំបើក server ស្ទួន ឱ្យ app ប្រើ ffmpeg filter ជំនួស
 
 for _s in (sys.stdout, sys.stderr):
     try: _s.reconfigure(encoding="utf-8", errors="replace")
@@ -26,6 +24,10 @@ def free_port(start=8000):
 def main():
     multiprocessing.freeze_support()
     prep_path()
+    if FROZEN and sys.argv[1:3] == ["-m", "demucs"]:
+        sys.argv = ["demucs"] + sys.argv[3:]
+        from demucs.separate import main as _demucs_main
+        _demucs_main(); return
     from backend.main import app
     if "--check" in sys.argv:
         for t in ("ffmpeg", "ffprobe"):
