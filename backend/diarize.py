@@ -290,7 +290,7 @@ def _cluster(items):
     if not voiced:
         return
     pts = [_feat(x) for x in voiced]
-    best_k, best_s, best_lab = 1, 0.42, [0] * len(pts)   # k=1 គឺជាតម្លៃលំនាំដើម
+    best_s, best_lab = 0.42, [0] * len(pts)   # k=1 គឺជាតម្លៃលំនាំដើម (silhouette ≤ 0.42)
     # សំដីខ្លី → អនុញ្ញាត k ដល់ n (១ បន្ទាត់/អ្នក) · សំដីវែង → k ≤ n/2
     kmax = min(8, len(pts)) if len(pts) <= 6 else min(8, len(pts) // 2)
     # សំដីខ្លីៗ (តិចជាង ៦ បន្ទាត់) → អនុញ្ញាត cluster ១ បន្ទាត់ (ប្រុស ២ នាក់ និយាយតិច)
@@ -301,7 +301,7 @@ def _cluster(items):
             continue
         sc = _silhouette(pts, lab)
         if sc > best_s + 0.02:         # ត្រូវការការកើនយ៉ាងច្បាស់
-            best_k, best_s, best_lab = k, sc, lab
+            best_s, best_lab = sc, lab
     for x, lab in zip(voiced, best_lab):
         x["cluster"] = int(lab)
 
