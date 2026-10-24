@@ -117,11 +117,19 @@ pip install demucs
 
 * * *
 
-## មុខងារនៅលើវីដេអូ Export (Layers និង Blur)
+## 🎬 Export តែមួយដង (Logo · Sponsor · Overlay · Khmer Text · Blur)
 
-បន្ទាប់ពី Export វីដេអូ (`<id>_km.mp4`) អ្នកអាចដាក់ layer និង blur បន្ថែមតាមប្រអប់ក្រោម preview។
+**គ្រប់យ៉ាងចេញក្នុង Export តែមួយ pass** — អក្សរខ្មែរ, សំឡេងខ្មែរ, BGM, layer ទាំង ៤ និង blur box
+ត្រូវបានដាក់ក្នុង filter graph តែមួយ ដូច្នេះវីដេអូត្រូវ encode **តែម្តង** (លឿន និងគុណភាពមិនធ្លាក់)។
+មិនត្រូវ Export រួចទើប Apply ម្តងមួយទៀតទេ។
 
-### 🎞️ Layers (Logo / Sponsor / Overlay / Khmer Text)
+របៀបប្រើ៖ កំណត់ layer និង blur ក្នុងប្រអប់ក្រោម preview → ចុច **Export Video** → ចប់។
+ប្រអប់ Export បង្ហាញបញ្ជី ✅ នៃអ្វីដែលនឹងបញ្ចូល (អក្សរ, សំឡេង, BGM, Logo, Sponsor, Overlay, Text, Blur)។
+
+លំដាប់គូរ (ក្រោម → លើ)៖ វីដេអូ → **Blur** → អក្សរខ្មែរ → **Logo → Sponsor → Overlay → Khmer Text**
+ដូច្នេះ Blur បាំងតែអ្វីក្នុងវីដេអូដើម (មុខ, ស្លាក, អក្សរបរទេស) មិនបាំងអក្សរខ្មែរ ឬ logo របស់អ្នកទេ។
+
+### 🎞️ Layers
 
 tab 4 ក្នុងប្រអប់តែមួយ ហើយ layer នីមួយៗមានការកំណត់ផ្ទាល់ខ្លួន (បើក/បិទ, រូប, ទីតាំង, X, Y, ទំហំ, opacity) មិនជះឥទ្ធិពលគ្នា។
 
@@ -132,10 +140,8 @@ tab 4 ក្នុងប្រអប់តែមួយ ហើយ layer នីម
 | 🖼️ Overlay | រូប ឬ GIF មានចលនា |
 | ©️ Khmer Text | វាយអក្សរខ្មែរ ជ្រើសពណ៌បាន (គូរជា PNG ក្នុង browser មិនពឹង font របស់ FFmpeg) |
 
-- ចុច **🎬 Apply Layers to Exported Video** ហើយ layer ទាំងអស់ដែលបានបើកត្រូវដាក់ម្តងតែមួយលើកតាមលំដាប់ Logo → Sponsor → Overlay → Text
-- លទ្ធផល៖ `<id>_km_ly.mp4` (file ថ្មី មិនជំនួសវីដេអូ Export ដើម)
-- Backend: `backend/layers.py` (`POST /api/layer`, `POST /api/layers_apply`)
-- Frontend: `frontend/src/OverlayPanel.jsx`
+- Layer ទាំងអស់ត្រូវដាក់ក្នុង Export តាមលំដាប់ Logo → Sponsor → Overlay → Text
+- Backend: `backend/graph.py` (filter graph តែមួយ), `backend/layers.py` (`POST /api/layer`)
 
 ### 🔲 Blur (ថេរ ឬដើរតាមចលនា)
 
@@ -144,12 +150,22 @@ tab **🔲 Blur** សម្រាប់បិទបាំងតំបន់ដ�
 - **Add Blur Box** ហើយ **ចាប់ទាញ** ប្រអប់ដោយផ្ទាល់លើ preview។ ទាញការ៉េមាសជ្រុងក្រោមស្តាំដើម្បីប្តូរទំហំ (ដំណើរការទាំង mouse និង touch)
 - កំណត់ទំហំ, កម្រិតព្រិល, និងពេលចាប់ផ្តើម/បញ្ចប់ (Start/End = ឥឡូវ)
 - **🎯 Follow motion**: ប្រសិនបើវត្ថុរើ សូម play ទៅចំណុចផ្សេងៗ រួចទាញប្រអប់តាមវត្ថុ 3-5 ចំណុច។ ប្រព័ន្ធចាប់ keyframe ហើយគណនាចលនាកណ្តាលចន្លោះឱ្យ (មិនប្រើ AI)
-- ចុច **🔲 Apply Blur to Exported Video** ហើយលទ្ធផលជា `<id>_km_bl.mp4`
-- បើបាន Apply Layers រួច Blur ដាក់លើ `_km_ly.mp4`។ ដូច្នេះ Blur អាចបាំង Logo/Text ក្នុងតំបន់ព្រិល។ ប្រសិនបើមិនចង់ ត្រូវ Apply Blur មុន Apply Layers
-- Backend: `backend/blur.py` (`POST /api/blur_apply`)
+- Blur ត្រូវបញ្ចូលក្នុង Export ដែរ (ដាក់ក្រោមអក្សរ និង layer)
+- Backend: `backend/graph.py` (`_blur_filters`)
 - Frontend: `frontend/src/BlurPanel.jsx`
 
-ចំណាំ៖ ការកំណត់ Layers និង Blur រក្សាក្នុង browser តែប៉ុណ្ណោះ (មិនទាន់ save ទៅ project) ហើយ preview ក្នុង browser គ្រាន់តែជាការប៉ាន់ស្មាន។
+### កែ layer / blur ក្រោយ Export រួច (ជម្រើស)
+
+បើ Export រួចហើយ ចង់បន្ថែម ឬកែ layer / blur ដោយមិនចាំបាច់ Export សំឡេង និងអក្សរឡើងវិញ៖
+ចុច **🎬 Apply Layers + Blur លើវីដេអូ Export រួច** → `POST /api/finish` → `<id>_km_fx.mp4`
+(បញ្ចូលទាំង Layers និង Blur ក្នុង pass តែមួយ ហើយចាប់ផ្តើមពី `<id>_km.mp4` ដើមវិញ មិន encode ជាន់ៗ)។
+
+Route ចាស់ (`/api/layers_apply`, `/api/overlay_apply`, `/api/blur_apply`) នៅដំណើរការ ប៉ុន្តែឥឡូវហៅ
+`backend/finish.py` ដូចគ្នា ដូច្នេះមិន encode ច្រើនជាន់ទេ។
+
+**ចំណាំ**
+- ការកំណត់ Layers និង Blur រក្សាក្នុង browser តែប៉ុណ្ណោះ (មិនទាន់ save ទៅ project) ហើយ preview ក្នុង browser គ្រាន់តែជាការប៉ាន់ស្មាន
+- បើមាន BGM ការ Export កាត់វីដេអូតាមរយៈពេលពិត (មិនរង់ចាំ loop ភ្លេងចប់)
 
 ## Deploy លើ Render
 

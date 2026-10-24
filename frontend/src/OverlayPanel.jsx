@@ -2,20 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import BlurPanel from "./BlurPanel.jsx";
 import Footer from "./Footer.jsx";
-
-const POS = {
-  "Top Left": [3, 4], "Top Center": [50, 4], "Top Right": [97, 4],
-  "Center Left": [3, 50], "Center": [50, 50], "Center Right": [97, 50],
-  "Bottom Left": [3, 85], "Bottom Center": [50, 85], "Bottom Right": [97, 85],
-};
-const CYAN = "#22d3ee", GOLD = "#fbbf24", RED = "#f43f5e";
-const LAYERS = [
-  { k: "logo", label: "🏷️ Logo", c: CYAN, def: { pos: "Top Right", x: 97, y: 4, size: 15, op: 90 } },
-  { k: "sponsor", label: "⭐ Sponsor", c: GOLD, def: { pos: "Bottom Left", x: 3, y: 85, size: 25, op: 90 } },
-  { k: "overlay", label: "🖼️ Overlay", c: CYAN, def: { pos: "Bottom Center", x: 50, y: 85, size: 25, op: 90 } },
-  { k: "text", label: "©️ Khmer Text", c: "#a78bfa", def: { pos: "Bottom Center", x: 50, y: 92, size: 50, op: 100 } },
-];
-const init = () => Object.fromEntries(LAYERS.map((L) => [L.k, { on: false, url: "", name: "", text: "", color: "#ffffff", ...L.def }]));
+import { LAYERS, POS, CYAN, GOLD, RED, PINK } from "./layers.js";
+import { renderTextPng } from "./textPix.js";
 
 function Slider({ label, value, set, min = 0, max = 100 }) {
   return (
@@ -28,8 +16,8 @@ function Slider({ label, value, set, min = 0, max = 100 }) {
   );
 }
 
-export default function OverlayPanel({ video }) {
-  const [st, setSt] = useState(init);
+// st = layer ទាំង ៤ (App កាន់ state ដើម្បីឱ្យ Export បញ្ចូលបានទាំងអស់ក្នុងពេលតែមួយ)
+export default function OverlayPanel({ video, layers: st, setLayers: setSt, boxes, setBoxes, onApply }) {
   const [tab, setTab] = useState("logo");
   const [blurTab, setBlurTab] = useState(false);
   const [busy, setBusy] = useState("");
@@ -43,33 +31,17 @@ export default function OverlayPanel({ video }) {
     return () => clearTimeout(t);
   }, [video]);
 
-  // វីដេអូថ្មី → លុប file layer ចាស់ (ជារបស់វីដេអូមុន) តែរក្សាការកំណត់
-  useEffect(() => {
-    setSt((s) => Object.fromEntries(Object.entries(s).map(([k, v]) => [k, k === "text" ? v : { ...v, url: "", name: "", on: false }])));
-  }, [video?.id]);
-
-  // អក្សរខ្មែរ → PNG (ដូច subtitle: មិនពឹង font របស់ FFmpeg)
+  // អក្សរខ្មែរ → PNG (preview + Export ប្រើ PNG តែមួយ)
   const T = st.text;
   useEffect(() => {
-    if (!T.on || !T.text.trim()) { setTextPng(""); return; }
     let dead = false;
+    if (!T.on || !T.text.trim()) { setTextPng(""); return; }
     (async () => {
-      try { await document.fonts.load("600 64px 'Noto Sans Khmer'"); } catch { /* ប្រើ font ប្រព័ន្ធ */ }
-      if (dead) return;
-      const fs = 64, pad = 16, lh = Math.round(fs * 1.5);
-      const font = `600 ${fs}px 'Noto Sans Khmer','Noto Sans SC',sans-serif`;
-      const c = document.createElement("canvas"), ctx = c.getContext("2d");
-      ctx.font = font;
-      const lines = T.text.split("\n");
-      c.width = Math.max(10, Math.ceil(Math.max(...lines.map((l) => ctx.measureText(l).width))) + pad * 2);
-      c.height = lh * lines.length + pad;
-      ctx.font = font; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
-      ctx.lineWidth = fs * 0.16; ctx.strokeStyle = "#000"; ctx.fillStyle = T.color;
-      lines.forEach((l, i) => { const y = pad / 2 + lh * i + lh / 2; ctx.strokeText(l, c.width / 2, y); ctx.fillText(l, c.width / 2, y); });
-      setTextPng(c.toDataURL("image/png"));
+      const url = await renderTextPng(T.text, T.color, 1080, T.size);
+      if (!dead) setTextPng(url);
     })();
     return () => { dead = true; };
-  }, [T.on, T.text, T.color]);
+  }, [T.on, T.text, T.color, T.size]);
 
   const choosePos = (k, p) => { upd(k, { pos: p }); if (POS[p]) upd(k, { x: POS[p][0], y: POS[p][1] }); };
 
@@ -88,60 +60,44 @@ export default function OverlayPanel({ video }) {
   };
 
   const apply = async () => {
-    if (!video) { alert("សូម Upload វីដេអូជាមុន"); return; }
     setBusy("apply");
-    try {
-      const layers = [];
-      for (const L of LAYERS) {
-        const s = st[L.k]; if (!s.on) continue;
-        let file = s.url;
-        if (L.k === "text") {
-          if (!textPng) continue;
-          const fd = new FormData(); fd.append("file", await (await fetch(textPng)).blob(), "text.png");
-          const r = await fetch(`/api/layer?id=${video.id}&kind=text`, { method: "POST", body: fd });
-          const j = await r.json(); if (!r.ok) throw new Error(j.detail || "Upload បរាជ័យ");
-          file = j.url;
-        }
-        if (file) layers.push({ kind: L.k, enabled: true, file, x: s.x, y: s.y, size: s.size, opacity: s.op });
-      }
-      if (!layers.length) throw new Error("គ្មាន layer ដែលបានបើក ឬមានរូប");
-      const res = await fetch("/api/layers_apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: video.id, layers }) });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.detail || "បរាជ័យ");
-      const a = document.createElement("a"); a.href = j.url; a.download = ""; a.click();
-    } catch (e) { alert(e.message); }
-    finally { setBusy(""); }
+    try { await onApply(); } finally { setBusy(""); }
   };
 
   const previews = host ? createPortal(<>{LAYERS.map((L, i) => {
     const s = st[L.k], src = L.k === "text" ? textPng : s.url;
     if (!s.on || !src) return null;
-    const isVid = /\.mp4($|\?)/i.test(src);
+    const isVid = /\.(mp4|mov|webm|mkv)($|\?)/i.test(src);
     const Tg = isVid ? "video" : "img";
     return <Tg key={L.k} src={src} {...(isVid ? { autoPlay: true, loop: true, muted: true, playsInline: true } : { alt: "", draggable: false })} style={{ position: "absolute", left: `${s.x}%`, top: `${s.y}%`, width: `${s.size}%`,
       transform: `translate(-${s.x}%, -${s.y}%)`, opacity: s.op / 100, pointerEvents: "none", zIndex: 5 + i }} />;
   })}</>, host) : null;
 
   const cur = LAYERS.find((L) => L.k === tab), s = st[tab], isText = tab === "text";
+  const onCount = LAYERS.filter((L) => st[L.k].on).length + (boxes.length ? 1 : 0);
   return (
     <div className="rounded-xl p-2 text-sm shrink-0 w-full overflow-auto" style={{
-      maxWidth: 900, maxHeight: 260, background: "rgba(255,255,255,.04)", border: `1px solid ${CYAN}66`, boxShadow: "0 0 14px rgba(34,211,238,.15)" }}>
+      maxWidth: 900, maxHeight: 300, background: "rgba(255,255,255,.04)", border: `1px solid ${CYAN}66`, boxShadow: "0 0 14px rgba(34,211,238,.15)" }}>
+      <div className="text-xs opacity-80 mb-1.5">
+        🎬 Logo · Sponsor · Overlay · Khmer Text · Blur — <b style={{ color: GOLD }}>បញ្ចូលក្នុង Export ស្វ័យប្រវត្តិ</b> (មិនត្រូវ Apply ដោយឡែកទេ)
+      </div>
       <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
         {LAYERS.map((L) => (
           <button key={L.k} onClick={() => { setTab(L.k); setBlurTab(false); }} className="rounded-lg px-2.5 py-1 text-xs font-semibold" style={{
-            background: tab === L.k ? `${L.c}33` : "transparent", border: `1px solid ${tab === L.k ? L.c : "#ffffff22"}`, color: L.c }}>
+            background: tab === L.k && !blurTab ? `${L.c}33` : "transparent", border: `1px solid ${tab === L.k && !blurTab ? L.c : "#ffffff22"}`, color: L.c }}>
             {L.label}{st[L.k].on ? " ●" : ""}
           </button>
         ))}
         <button onClick={() => setBlurTab(true)} className="rounded-lg px-2.5 py-1 text-xs font-semibold" style={{
-          background: blurTab ? "#f472b633" : "transparent", border: `1px solid ${blurTab ? "#f472b6" : "#ffffff22"}`, color: "#f472b6" }}>
-          🔲 Blur
+          background: blurTab ? `${PINK}33` : "transparent", border: `1px solid ${blurTab ? PINK : "#ffffff22"}`, color: PINK }}>
+          🔲 Blur{boxes.length ? ` (${boxes.length})` : ""}
         </button>
-        {false && (<></>)}
-        <label className="flex items-center gap-1.5 cursor-pointer ml-auto" style={{ color: cur.c, display: blurTab ? "none" : undefined }}>
-          <input type="checkbox" checked={s.on} onChange={(e) => upd(tab, { on: e.target.checked })} style={{ accentColor: CYAN }} />
-          <span>Enable</span>
-        </label>
+        {!blurTab && (
+          <label className="flex items-center gap-1.5 cursor-pointer ml-auto" style={{ color: cur.c }}>
+            <input type="checkbox" checked={s.on} onChange={(e) => upd(tab, { on: e.target.checked })} style={{ accentColor: CYAN }} />
+            <span>Enable</span>
+          </label>
+        )}
       </div>
 
       <div className={blurTab ? "hidden" : "grid gap-x-4"} style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)" }}>
@@ -173,10 +129,10 @@ export default function OverlayPanel({ video }) {
               {[...Object.keys(POS), "Custom"].map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
           </label>
-          <button className="w-full rounded-lg py-1.5 font-semibold" onClick={apply} disabled={!!busy}
-            title="ចុច Export វីដេអូជាមុន រួចចុចប៊ូតុងនេះ។ Layer ទាំងអស់ដែលបានបើកត្រូវដាក់ម្តងតែមួយ (file ថ្មី មិនជំនួសវីដេអូ Export ដើម)"
-            style={{ background: "rgba(251,191,36,.15)", border: `1px solid ${GOLD}`, color: GOLD }}>
-            {busy === "apply" ? "កំពុងដាក់ Layers..." : "🎬 Apply Layers to Exported Video"}
+          <button className="w-full rounded-lg py-1.5 font-semibold" onClick={apply} disabled={!!busy || !onCount}
+            title="បើបាន Export រួច ហើយចង់បន្ថែម/កែ layer និង blur ដោយមិន Export សំឡេងឡើងវិញ — ចុចប៊ូតុងនេះ (pass តែមួយ ដាក់ទាំង Layers និង Blur)"
+            style={{ background: "rgba(251,191,36,.15)", border: `1px solid ${GOLD}`, color: GOLD, opacity: onCount ? 1 : 0.5 }}>
+            {busy === "apply" ? "កំពុងដាក់ Layers + Blur..." : "🎬 Apply Layers + Blur លើវីដេអូ Export រួច"}
           </button>
         </div>
         <div className="space-y-1 min-w-0">
@@ -186,7 +142,7 @@ export default function OverlayPanel({ video }) {
           <Slider label="Opacity (%)" value={s.op} set={(v) => upd(tab, { op: v })} />
         </div>
       </div>
-      {blurTab && <BlurPanel video={video} host={host} />}
+      {blurTab && <BlurPanel video={video} host={host} boxes={boxes} setBoxes={setBoxes} onApply={apply} busy={busy} />}
       <Footer />
       {previews}
     </div>

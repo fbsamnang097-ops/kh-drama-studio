@@ -27,17 +27,16 @@ function Slider({ label, value, set, min = 0, max = 100, unit = "%" }) {
   );
 }
 
-export default function BlurPanel({ video, host }) {
-  const [boxes, setBoxes] = useState([]);
+// boxes កាន់នៅ App (ដើម្បី Export ដាក់ Blur ក្នុង pass តែមួយជាមួយ layer)
+export default function BlurPanel({ video, host, boxes, setBoxes, onApply, busy }) {
   const [sel, setSel] = useState(null);
   const [t, setT] = useState(0);
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     const iv = setInterval(() => { const v = document.querySelector("video"); if (v) setT(v.currentTime || 0); }, 100);
     return () => clearInterval(iv);
   }, []);
-  useEffect(() => { setBoxes([]); setSel(null); }, [video?.id]);
+  useEffect(() => { setSel(null); }, [video?.id]);
 
   const cur = boxes.find((b) => b.id === sel) || null;
   const upd = (id, p) => setBoxes((bs) => bs.map((b) => (b.id === id ? { ...b, ...p } : b)));
@@ -60,15 +59,7 @@ export default function BlurPanel({ video, host }) {
   const apply = async () => {
     if (!video) { alert("សូម Upload វីដេអូជាមុន"); return; }
     if (!boxes.length) { alert("សូមបន្ថែម Blur box ជាមុន"); return; }
-    setBusy(true);
-    try {
-      const res = await fetch("/api/blur_apply", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: video.id, boxes: boxes.map(({ id, ...b }) => b) }) });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.detail || "បរាជ័យ");
-      const a = document.createElement("a"); a.href = j.url; a.download = ""; a.click();
-    } catch (e) { alert(e.message); }
-    finally { setBusy(false); }
+    await onApply();   // App ដាក់ Layers + Blur ក្នុង pass តែមួយ
   };
 
   const drag = useRef(null);
@@ -160,10 +151,11 @@ export default function BlurPanel({ video, host }) {
           </div>
         </div>
       )}
-      <button className="w-full rounded-lg py-1.5 font-semibold mt-1.5" onClick={apply} disabled={busy || !boxes.length}
-        title="ចុច Export វីដេអូជាមុន រួចចុចប៊ូតុងនេះ។ បើបាន Apply Layers រួច Blur នឹងដាក់លើលទ្ធផលនោះ"
+      <div className="text-xs opacity-70 mt-1">🔲 Blur ក៏ <b style={{ color: GOLD }}>បញ្ចូលក្នុង Export</b> ដែរ — បើបាន Export រួច សូមប្រើប៊ូតុងខាងក្រោម។</div>
+      <button className="w-full rounded-lg py-1.5 font-semibold mt-1.5" onClick={apply} disabled={!!busy || !boxes.length}
+        title="ចុច Export វីដេអូជាមុន រួចចុចប៊ូតុងនេះ (ដាក់ Layers + Blur ក្នុង pass តែមួយ)"
         style={{ background: "rgba(251,191,36,.15)", border: `1px solid ${GOLD}`, color: GOLD, opacity: boxes.length ? 1 : 0.5 }}>
-        {busy ? "កំពុងដាក់ Blur..." : "🔲 Apply Blur to Exported Video"}
+        {busy === "apply" ? "កំពុងដាក់ Layers + Blur..." : "🎬 Apply Layers + Blur លើវីដេអូ Export រួច"}
       </button>
       {prev}
     </div>

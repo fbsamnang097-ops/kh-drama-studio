@@ -2,6 +2,11 @@
 ដំណើរការលើ ffmpeg គ្រប់ build (មិនត្រូវការ libass / freetype)"""
 import base64, io, json, pathlib, re, uuid, zipfile
 
+try:
+    from . import graph as G
+except ImportError:   # ពេលរត់ឯកសារនេះដោយផ្ទាល់
+    import graph as G
+
 def write_track(store, vid, segs, blank_b64):
     """segs: [{start,end,png}] → សរសេរ PNG ទៅ storage + ឯកសារ concat; ត្រឡប់ឈ្មោះ .txt"""
     def put(name, b64):
@@ -37,8 +42,13 @@ def _mix(n, bgm_idx, pad=False):
     flt.append("[v1][duck]amix=inputs=2:duration=first:normalize=0[aout]")
     return flt
 
-def export_args(src, clips, subs_txt, out, q, bgm=None):
-    # q["hd"] = re-encode ច្បាស់; q["tw"],q["th"] = ទំហំ upscale (ស្គាល់ស្វ័យប្រវត្តិពីប្រភព)
+def export_args(src, clips, subs_txt, out, q, bgm=None, layers=(), boxes=(), W=0, H=0, dur=0.0):
+    """Export តែមួយ pass: សំឡេងខ្មែរ + BGM + Subtitle + Logo/Sponsor/Overlay/Text + Blur
+
+    q["hd"] = re-encode ច្បាស់; q["tw"],q["th"] = ទំហំ upscale (ស្គាល់ស្វ័យប្រវត្តិពីប្រភព)
+    layers = graph.layer_inputs(...) → [(input args, ឈ្មោះ file, layer)]
+    boxes  = blur box របស់ BlurPanel;  W,H = ទំហំវីដេអូដើម (px)
+    """
     inputs, flt = ["-i", src], []
     for i, s in enumerate(clips):
         inputs += ["-i", pathlib.Path(s["audio"]).name]
@@ -47,23 +57,30 @@ def export_args(src, clips, subs_txt, out, q, bgm=None):
     if bgm:
         inputs += ["-stream_loop", "-1", "-i", pathlib.Path(bgm).name]; bgm_idx = nxt; nxt += 1
     flt += _mix(len(clips), bgm_idx, pad=bool(bgm))
-    x264 = ["-c:v", "libx264", "-preset", q["preset"], "-crf", str(q["crf"]), "-pix_fmt", "yuv420p"]
+
+    # ---- វីដេអូ: layer និង subtitle ជា input បន្ថែម ----
+    first_layer = nxt
+    for args, _name, _L in layers:
+        inputs += args; nxt += 1
+    subs_idx = None
     if subs_txt:
-        inputs += ["-f", "concat", "-safe", "0", "-i", subs_txt]
-        if q.get("tw"):
-            flt.append(f"[0:v]scale={q['tw']}:{q['th']}:flags=lanczos[v0]")
-            flt.append(f"[{nxt}:v]scale={q['tw']}:-2:flags=lanczos[sb]")
-            flt.append("[v0][sb]overlay=x=0:y=H-h:eof_action=pass[vout]")
-        else:
-            flt.append(f"[0:v][{nxt}:v]overlay=x=0:y=H-h:eof_action=pass[vout]")
-        vmap, venc = "[vout]", x264
-    elif q.get("hd"):
-        flt.append(f"[0:v]scale={q['tw']}:{q['th']}:flags=lanczos[vout]" if q.get("tw") else "[0:v]null[vout]")
-        vmap, venc = "[vout]", x264
+        inputs += ["-f", "concat", "-safe", "0", "-i", subs_txt]; subs_idx = nxt; nxt += 1
+
+    x264 = ["-c:v", "libx264", "-preset", q["preset"], "-crf", str(q["crf"]), "-pix_fmt", "yuv420p"]
+    up = bool(q.get("tw") and q.get("th"))
+    vfx = up or bool(layers) or subs_idx is not None or bool(boxes)
+    if vfx or q.get("hd"):
+        TW, TH = (q["tw"], q["th"]) if up else (W or 1080, H or 1920)
+        chain, label = G.video_chain(TW, TH, layers, first_layer, boxes, subs_idx, scale=up)
+        flt += chain
+        vmap, venc = (label if chain else "0:v"), x264
     else:
         vmap, venc = "0:v", ["-c:v", "copy"]
+    # BGM loop គ្មានទីបញ្ចប់ + apad → stream សំឡេងមិនចប់។ `-shortest` មិនកាត់ filter graph
+    # បានទេ (ffmpeg រង់ចាំរហូត) ដូច្នេះត្រូវកាត់ដោយ `-t <រយៈពេលវីដេអូ>`។
+    cut = ["-t", f"{float(dur):.3f}"] if (bgm and dur and dur > 0) else (["-shortest"] if bgm else [])
     return [*inputs, "-filter_complex", ";".join(flt), "-map", vmap, "-map", "[aout]", *venc,
-            "-c:a", "aac", "-b:a", q["abr"], "-movflags", "+faststart", *(["-shortest"] if bgm else []), out]
+            "-c:a", "aac", "-b:a", q["abr"], "-movflags", "+faststart", *cut, out]
 
 # ---------- Export / Import TTS ----------
 AUD = {".mp3", ".wav", ".m4a", ".ogg", ".aac", ".flac"}
