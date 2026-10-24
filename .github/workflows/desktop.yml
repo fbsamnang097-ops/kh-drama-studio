@@ -81,6 +81,8 @@ jobs:
             --collect-all einops \
             --collect-all lameenc \
             --hidden-import demucs.separate \
+            --collect-all soundfile \
+            --hidden-import soundfile \
             launcher.py
 
       - name: Smoke test backend
