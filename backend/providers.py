@@ -54,6 +54,19 @@ VOICE_LABEL = {
 }
 
 
+def voice_profile(key):
+    """voice id (male_adult_2 · elderly_female_1 …) ឬ role code (男主/老男…) → ការកំណត់សំឡេង"""
+    try:
+        from .voices import VOICES
+        v = VOICES.get(key)
+        if v:
+            gender, _age, _label, rate, pitch, volume, _note = v
+            return (gender, rate, pitch, volume), key
+    except Exception:
+        pass
+    return char_profile(key)
+
+
 def char_profile(char):
     """តួអង្គ → ((gender, rate, pitch, volume), char) ជាមួយ normalize"""
     try:
@@ -274,7 +287,7 @@ def translate(lines, cfg):
 def tts(text, char, speed, cfg):
     """char = តួអង្គ (男主/女主/老男/老女/小孩/小孩男/旁白) ឬ 'male'/'female' ចាស់"""
     p = prov(cfg, "tts"); c = CATALOG["tts"][p]
-    (gender, rate, pitch, volume), _char = char_profile(char)
+    (gender, rate, pitch, volume), _char = voice_profile(char)
     voice = _g(cfg, f"tts_{gender}_{p}", c[gender])
     text = natural_text(text)          # សម្អាតអត្ថបទគ្រប់ provider
     if p == "edge":   # ឥតគិតថ្លៃ គ្មាន Key

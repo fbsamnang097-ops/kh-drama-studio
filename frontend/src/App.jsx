@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import OverlayPanel from "./OverlayPanel.jsx";
+import CharacterPanel from "./CharacterPanel.jsx";
 import { LAYERS, initLayers, resetLayers } from "./layers.js";
 import { renderTextPng } from "./textPix.js";
 
@@ -81,6 +82,12 @@ export default function App() {
   const [zoom, setZoom] = useState(20);               // px ក្នុង ១ វិនាទី
   const [busy, setBusy] = useState("");
   const [castMsg, setCastMsg] = useState("");   // សារសង្ខេបពី auto-scan តួអង្គ
+  const [cast, setCast] = useState([]);         // តួអង្គដែលបានវិភាគ (សំឡេង+អត្ថបទ)
+  const [voiceCat, setVoiceCat] = useState({ voices: [], ages: {}, genders: {}, limitations: [] });
+  const [autoDetect, setAutoDetect] = useState(() => { try { return localStorage.getItem("khAutoCast") !== "0"; } catch { return true; } });
+  const [showCast, setShowCast] = useState(false);
+  useEffect(() => { try { localStorage.setItem("khAutoCast", autoDetect ? "1" : "0"); } catch {} }, [autoDetect]);
+  useEffect(() => { if (!showCast) return; api("/api/characters").then(setVoiceCat).catch(() => {}); }, [showCast]);
   const [showSet, setShowSet] = useState(false);
   const [exported, setExported] = useState(false);
   const [showSub, setShowSub] = useState(true);       // បង្ហាញ/បិទ អក្សរលើវីដេអូ (និង Export)
@@ -122,6 +129,18 @@ export default function App() {
       const scanned = r.filter((s) => s.char).length;
       setSegs(r.map((s, i) => ({ ...s, id: i + 1, km: "", char: s.char || "旁白", conf: s.conf, status: "Pending", audio: "" })));
       if (scanned) setTimeout(() => setCastMsg(`✨ Auto-scan តួអង្គ ${scanned} បន្ទាត់ · ${summarize(r)}`), 50);
+      if (autoDetect && r.length) {
+        setBusy("កំពុងវិភាគតួអង្គ (សំឡេង)...");
+        await api("/api/characters/detect", {
+          id: v.id, use_audio: true,
+          segments: r.map((x) => ({ start: x.start, end: x.end, zh: x.zh })),
+        }).then((d) => {
+          setCast(d.characters || []);
+          setSegs((cur) => cur.map((x, i) => ({ ...x, char_id: d.items[i]?.char_id, char: d.items[i]?.char ?? x.char, conf: d.items[i]?.conf ?? x.conf })));
+          setCastMsg(`🎭 ${d.summary}`);
+          setVoiceCat((vv) => ({ ...vv, limitations: d.limitations || [] }));
+        }).catch((e) => console.error("character detect failed:", e));
+      }
     } catch (e) { alert(e.message); }
     setBusy("");
   };
@@ -173,9 +192,46 @@ export default function App() {
     if (r.length !== segs.length) alert(`Import សំឡេង ${r.length} / ${segs.length} segments (លេខនៅដើមឈ្មោះ file = លំដាប់ segment)`);
   });
 
+  // 🎭 វិភាគតួអង្គពិត (សំឡេង + អត្ថបទ) → តួអង្គថេរ + សំឡេងតាមតួអង្គ
+  const detectCore = async () => {
+    if (!video?.id) throw new Error("សូម Upload វីដេអូជាមុន");
+    if (!segs.length) throw new Error("សូម Transcribe ជាមុនសិន");
+    const r = await api("/api/characters/detect", {
+      id: video.id,
+      segments: segs.map((x) => ({ start: x.start, end: x.end, zh: x.zh })),
+      use_audio: true,
+    });
+    setCast(r.characters || []);
+    setSegs((cur) => cur.map((x, i) => ({
+      ...x,
+      char_id: r.items[i]?.char_id ?? x.char_id,
+      char: r.items[i]?.char ?? x.char,
+      conf: r.items[i]?.conf ?? x.conf,
+    })));
+    setCastMsg(`🎭 ${r.summary}${r.audio?.speakers ? ` · ${r.audio.speakers} សំឡេងខុសគ្នា` : ""}`);
+    setVoiceCat((v) => ({ ...v, limitations: r.limitations || v.limitations }));
+    return r;
+  };
+  const detectChars = runWith("កំពុងវិភាគតួអង្គ (សំឡេង)...", detectCore);
+  const assignVoice = async (cid, vid) => {
+    try {
+      const r = await api("/api/characters/assign", { id: video.id, overrides: { [cid]: vid } });
+      setCast(r.characters || []);
+    } catch (e) { alert(e.message); }
+  };
+  const previewVoice = async (vid) => {
+    const r = await api("/api/voice_preview", { voice: vid });
+    await new Audio(r.url).play().catch(() => {});
+  };
+  const autoAssign = runWith("កំពុងចាត់សំឡេងស្វ័យប្រវត្តិ...", async () => {
+    await api("/api/characters/assign", { id: video.id, overrides: {}, reset: true });
+    await detectCore();
+  });
+
   // Auto-scan តួអង្គ (ឥតគិតថ្លៃ) — រក្សាការកែដោយដៃ
   const scanChars = runWith("កំពុងស្កេនតួអង្គ...", async () => {
     if (!segs.length) throw new Error("សូម Transcribe ឬ Import STT ជាមុន");
+    if (video?.id) return detectCore();          // មានវីដេអូ → វិភាគសំឡេងពិត
     const r = await api("/api/cast", { lines: segs.map((s) => s.zh || ""), keep: segs.map((s) => (s.manualChar ? s.char : "")) });
     setSegs((cur) => cur.map((x, i) => ({ ...x, char: r.items[i]?.char || x.char, conf: r.items[i]?.conf })));
     setCastMsg(`✨ រកឃើញតួអង្គ · ${r.summary}`);
@@ -191,7 +247,7 @@ export default function App() {
       if (!s.km) continue; patch(s.id, { status: "Generating" });
       let ok = false;
       for (let t = 0; t < 3 && !ok; t++) {
-        try { const r = await api("/api/tts", { text: s.km, char: voiceOf(s.char), speed: 0 }); patch(s.id, { audio: r.url, status: "Done" }); ok = true; }
+        try { const r = await api("/api/tts", { text: s.km, char: voiceOf(s.char), char_id: s.char_id || "", video: video?.id || "", speed: 0 }); patch(s.id, { audio: r.url, status: "Done" }); ok = true; }
         catch (e) { console.error("TTS failed:", s.km, e); await new Promise((res) => setTimeout(res, 1000 * (t + 1))); }
       }
       if (!ok) { patch(s.id, { status: "Error" }); failed++; }
@@ -408,7 +464,7 @@ export default function App() {
       {/* ២. Subtitle Editor */}
       <section className="pnl pnl-violet p-3 pt-4 flex flex-col min-h-0 min-w-0">
         <div className="flex gap-2 mb-2 flex-wrap items-center">
-          <B c="violet" onClick={addText}>+ Add Text</B><B c="red" onClick={del}>Delete</B><B c="amber" onClick={findReplace}>Find &amp; Replace</B><B c="pink" onClick={scanChars}>🔍 ស្កេនតួអង្គ</B>
+          <B c="violet" onClick={addText}>+ Add Text</B><B c="red" onClick={del}>Delete</B><B c="amber" onClick={findReplace}>Find &amp; Replace</B><B c="pink" onClick={scanChars}>🔍 ស្កេនតួអង្គ</B><B c="violet" onClick={() => setShowCast((v) => !v)}>🎭 តួអង្គ ({cast.length})</B>
           <span className="text-xs opacity-70">{busy}</span>
           {castMsg && <span className="text-xs" style={{ color: "#6ee7b7" }}>{castMsg}</span>}
 
@@ -428,6 +484,15 @@ export default function App() {
           <OverlayPanel video={video} layers={layers} setLayers={setLayers} boxes={blurBoxes} setBoxes={setBlurBoxes} onApply={applyFx} />
         </div>
         <div className="overflow-auto flex-1 text-sm">
+          {showCast && (
+            <CharacterPanel
+              cast={cast} cat={voiceCat} busy={busy} msg={castMsg}
+              auto={autoDetect} setAuto={setAutoDetect}
+              onDetect={detectChars} onAutoAssign={autoAssign}
+              onAssign={assignVoice} onPreview={previewVoice}
+              onClose={() => setShowCast(false)}
+            />
+          )}
           <table className="w-full table-fixed"><colgroup>{[30, 34, 62, 62, null, null, 100, 84].map((w, i) => <col key={i} style={w ? { width: w } : undefined} />)}</colgroup>
             <thead className="sticky top-0 bg-[#1a1450] text-left"><tr>{["", "#", "Start", "End", "中文", "ខ្មែរ", "Character", "Voice"].map((h) => <th key={h} className="p-1">{h}</th>)}</tr></thead>
             <tbody>{segs.map((s, i) => (
@@ -439,12 +504,19 @@ export default function App() {
                 <td><textarea rows={2} className="w-full resize-none leading-snug" value={s.zh} onChange={(e) => patch(s.id, { zh: e.target.value })} /></td>
                 <td><textarea rows={2} className="w-full resize-none leading-snug" value={s.km} onChange={(e) => patch(s.id, { km: e.target.value, status: "Pending", audio: "" })} /></td>
                 <td className="whitespace-nowrap">
-                  <span className="charTag"
-                    title={`${CHAR_LABEL[s.char] || s.char}${s.conf ? ` · Auto-scan ជឿជាក់ ${Math.round(s.conf * 100)}%` : ""}`}
-                    style={{ borderColor: `${CC(s.char)}88`, background: `${CC(s.char)}22`, color: CC(s.char) }}>
-                    <i className="dot" style={{ background: CC(s.char) }} />
-                    {CHAR_LABEL[s.char] || s.char}
-                  </span>
+                  {(() => {
+                    const ch = cast.find((c) => c.id === s.char_id);
+                    const name = ch ? ch.name : (CHAR_LABEL[s.char] || s.char);
+                    const col = ch?.color || CC(s.char);
+                    return (
+                      <span className="charTag"
+                        title={`${ch ? `${ch.name} · ${ch.gender}/${ch.age} · ${ch.voice}` : CHAR_LABEL[s.char] || s.char}${s.conf ? ` · ជឿជាក់ ${Math.round(s.conf * 100)}%` : ""}`}
+                        style={{ borderColor: `${col}88`, background: `${col}22`, color: col }}>
+                        <i className="dot" style={{ background: col }} />
+                        {name}
+                      </span>
+                    );
+                  })()}
                 </td>
                 <td><span className={`chip chip-${s.status}`}>{s.status}</span></td>
               </tr>))}</tbody>

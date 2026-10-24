@@ -6,6 +6,9 @@ from . import providers as P
 from . import subs as SB
 from . import graph as G
 from . import cast as C
+from . import diarize as D
+from . import identity as ID
+from . import voices as V
 from . import encode as E
 from . import progress as PR
 
@@ -61,15 +64,107 @@ def cast_scan(b: CastIn):
     return C.scan(b.lines, keep=b.keep)
 
 @app.get("/api/characters")
-def characters():
-    """បញ្ជីតួអង្គ + ពណ៌ + សំឡេង សម្រាប់ UI"""
+def characters(id: str = ""):
+    """បញ្ជីតួអង្គ + សំឡេង · បើផ្តល់ id → ត្រឡប់ cast ដែលបានរក្សាទុក"""
     out = []
     for c in C.CHARS:
         (gender, rate, pitch, volume), _ = P.char_profile(c)
         out.append({"char": c, "label": C.LABELS[c], "color": C.COLORS[c],
                     "voice": gender, "rate": rate, "pitch": pitch, "volume": volume,
                     "voiceName": P.VOICE_LABEL.get(c, gender)})
-    return {"characters": out, "default": C.NARR}
+    data = {"roles": out, "default": C.NARR, "voices": V.all_for_ui(),
+            "ages": V.AGE_LABEL, "genders": V.GENDER_LABEL,
+            "limitations": [
+                "edge-tts (ឥតគិតថ្លៃ) មានសំឡេងខ្មែរតែ ២ (Piseth ប្រុស · Sreymom ស្រី) — ចាស់/ក្មេង/តួប្រុស ២ នាក់ បង្កើតដោយ rate · pitch · volume",
+                "បើកំណត់ Azure/Google/ElevenLabs ក្នុង Settings នឹងប្រើសំឡេងពិតរបស់ពួកគេ",
+            ]}
+    if id:
+        data["cast"] = ID.load_cast(STORE, id)
+    return data
+
+
+class DetectIn(BaseModel):
+    id: str
+    segments: list[dict] = []      # [{start,end,zh}]
+    use_audio: bool = True
+    voicebook: bool = True
+
+
+@app.post("/api/characters/detect")
+def characters_detect(b: DetectIn):
+    """វិភាគតួអង្គពី សំឡេង + អត្ថបទ (diarization) — តួអង្គថេរពេញរឿង"""
+    def run():
+        segs = [s for s in b.segments if isinstance(s, dict)]
+        audio = None
+        video = STORE / f"{b.id}.mp4"
+        if b.use_audio and video.exists() and segs:
+            try:
+                audio = D.analyze_segments(video, segs)
+            except Exception as e:
+                print("diarization failed:", e, flush=True)
+                audio = None
+        prev = ID.load_cast(STORE, b.id) or {}
+        book = ID.load_voicebook(STORE) if b.voicebook else {}
+        res = ID.resolve(segs, audio, video_id=b.id, voicebook=book,
+                         previous=prev.get("characters"))
+        # ការជ្រើសដោយដៃរបស់អ្នកប្រើ ឈ្នះស្វ័យប្រវត្តិ
+        ID.apply_overrides(res, (prev or {}).get("overrides") or {})
+        if b.voicebook:
+            ID.bind_voicebook(STORE, res["characters"])
+        ID.save_cast(STORE, b.id, {**res, "overrides": (prev or {}).get("overrides") or {}})
+        return res
+    return guard(run)
+
+
+class AssignIn(BaseModel):
+    id: str
+    overrides: dict = {}           # {char_id: voice_id}
+    reset: bool = False
+
+
+@app.post("/api/characters/assign")
+def characters_assign(b: AssignIn):
+    """ជ្រើសសំឡេងដោយដៃ → រក្សាទុកជារៀងរហូត (រហូតដល់ reset)"""
+    def run():
+        data = ID.load_cast(STORE, b.id) or {"characters": [], "items": []}
+        ov = {} if b.reset else {**(data.get("overrides") or {}), **b.overrides}
+        (data.setdefault("characters", []))
+        for c in data["characters"]:
+            if b.reset:
+                c["manual"] = False
+            v = ov.get(c["id"])
+            if v and v in V.VOICES:
+                c["voice"], c["manual"], c["source"] = v, True, "manual"
+        data["overrides"] = ov
+        ID.save_cast(STORE, b.id, data)
+        # ភ្ជាប់ឈ្មោះ → សំឡេង សម្រាប់ភាគក្រោយ
+        book = ID.load_voicebook(STORE)
+        for c in data["characters"]:
+            if c.get("manual") and c.get("name") and c.get("named", True):
+                book[c["name"]] = c["voice"]
+        ID.save_voicebook(STORE, book)
+        return {"ok": True, "characters": data["characters"], "overrides": ov}
+    return guard(run)
+
+
+class PreviewIn(BaseModel):
+    voice: str
+    text: str = "សួស្តី ខ្ញុំសាកល្បងសំឡេងនេះ។"
+
+
+@app.post("/api/voice_preview")
+def voice_preview(b: PreviewIn):
+    """សាកស្តាប់សំឡេង (សម្រាប់ប៊ូតុង 🔊 ក្នុងប្រអប់ Character)"""
+    if b.voice not in V.VOICES and b.voice not in C.CHARS:
+        raise HTTPException(400, "សំឡេងមិនត្រឹមត្រូវ")
+    def run():
+        name = f"preview_{uuid.uuid4().hex[:8]}.mp3"
+        (STORE / name).write_bytes(P.tts(b.text[:200], b.voice, 0.0, P.load()))
+        return {"url": f"/files/{name}", "voice": b.voice}
+    try:
+        return run()
+    except Exception as e:
+        raise HTTPException(503, f"បង្កើតសំឡេងសាកល្បងមិនបាន (ពិនិត្យ internet/key): {e}")
 
 class Tr(BaseModel): lines: list[str]
 @app.post("/api/translate")
@@ -77,15 +172,30 @@ def translate(b: Tr): return guard(lambda: P.translate(b.lines, P.load()))
 
 class Sp(BaseModel):
     text: str
-    char: str = ""          # តួអង្គ (男主/女主/老男/老女/小孩/小孩男/旁白)
+    char: str = ""          # role code ឬ voice id
+    char_id: str = ""       # character id (ត្រូវការ video)
+    video: str = ""         # video id (សម្រាប់រក cast)
     gender: str = "male"    # តម្លៃចាស់ (backward compat)
     speed: float = 0.0
+
+
+def _voice_for(b):
+    """char_id → voice ពី cast ដែលរក្សាទុក · បើគ្មាន → char/voice id"""
+    if b.video and b.char_id:
+        data = ID.load_cast(STORE, b.video) or {}
+        for c in data.get("characters", []):
+            if c.get("id") == b.char_id:
+                return c.get("voice") or c.get("role") or b.char or b.gender
+    return b.char or b.gender
+
+
 @app.post("/api/tts")
 def tts(b: Sp):
     def run():
         name = f"{uuid.uuid4().hex[:10]}.mp3"
-        (STORE / name).write_bytes(P.tts(b.text, b.char or b.gender, b.speed, P.load()))
-        return {"url": f"/files/{name}", "char": P.char_profile(b.char or b.gender)[1]}
+        voice = _voice_for(b)
+        (STORE / name).write_bytes(P.tts(b.text, voice, b.speed, P.load()))
+        return {"url": f"/files/{name}", "char": P.voice_profile(voice)[1], "voice": voice}
     return guard(run)
 
 def _q(q, quality, src):
