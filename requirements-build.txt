@@ -6,3 +6,4 @@ edge-tts
 requests
 python-dotenv
 pyinstaller
+faster-whisper

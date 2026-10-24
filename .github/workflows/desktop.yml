@@ -67,6 +67,12 @@ jobs:
             --add-data "VERSION${SEP}." \
             --collect-submodules backend \
             --collect-submodules uvicorn \
+            --collect-all faster_whisper \
+            --collect-all ctranslate2 \
+            --collect-all tokenizers \
+            --collect-all av \
+            --collect-all onnxruntime \
+            --hidden-import faster_whisper \
             launcher.py
 
       - name: Smoke test backend
