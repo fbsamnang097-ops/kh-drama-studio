@@ -296,8 +296,8 @@ cd frontend && npm install && npm run build && cd ..
 
 ### ចេញកំណែថ្មី (សម្រាប់អ្នកអភិវឌ្ឍ)
 
-1. ប្តូរលេខក្នុង file `VERSION` (ឧ. `1.0.2`) ហើយ commit
-2. `git tag v1.0.2 && git push origin v1.0.2`
+1. ប្តូរលេខក្នុង file `VERSION` **និង** `package.json` (`"version"`) ឱ្យដូចគ្នា (ឧ. `1.0.13`) ហើយ commit
+2. `git tag v1.0.13 && git push origin v1.0.13`
 3. GitHub Actions (tab Actions → Build apps) នឹង build Windows, Mac Intel, Mac ARM ហើយដាក់ file ក្នុង Releases ដោយស្វ័យប្រវត្តិ
 
-tag ត្រូវដូច `VERSION` (`v1.0.2` ↔ `1.0.2`) បើមិនដូច្នេះ build នឹងបរាជ័យ។ លេខនេះបង្ហាញក្នុង footer របស់ app ផងដែរ។
+tag ត្រូវដូច `VERSION` និង `package.json` (`v1.0.13` ↔ `1.0.13`) បើមិនដូច្នេះ build នឹងបរាជ័យ។ លេខនេះបង្ហាញក្នុង footer របស់ app ផងដែរ។
