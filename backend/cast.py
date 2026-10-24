@@ -371,3 +371,43 @@ def scan(lines, keep=None, **kw):
         "changed": sum(1 for it in items if not it.get("manual")),
         "total": len(items),
     }
+
+
+# ---------- ស្វែងរកឈ្មោះតួអង្គ (Chinese names) ----------
+SURNAMES = set("王李张刘陈杨黄赵周吴徐孙胡朱高林何郭马罗梁宋郑谢韩唐冯于董萧程曹袁邓许傅沈曾彭吕苏卢蒋蔡贾丁魏薛"
+               "叶阎余潘杜戴夏钟汪田任姜范方石姚谭廖邹熊金陆郝孔白崔康毛邱秦江史顾侯邵孟龙万段雷钱汤尹黎易常武乔贺赖龚文")
+_NOT_NAMES = set(STOP_NAMES) | set(OLD) | set(CHILD) | {
+    "母亲", "父亲", "妈妈", "爸爸", "儿子", "女儿", "奶奶", "爷爷", "阿姨", "叔叔", "医生", "老师",
+    "什么", "怎么", "这个", "那个", "一个", "现在", "时候", "地方", "东西", "事情", "一起", "已经",
+}
+
+
+def find_names(lines, min_count=1):
+    """ឈ្មោះចិនដែលអាចជាតួអង្គ — នាមត្រកូល + 名字 ឬ 小X / 老X"""
+    import re as _re
+    cnt = {}
+    pat = _re.compile(r"(?:[小老])[\u4e00-\u9fa5]|[\u4e00-\u9fa5]{2,3}")
+    for raw in lines or []:
+        txt = str(raw or "")
+        # យកតែឈ្មោះដែលនៅជិតកិរិយាសព្ទ ឬជាកម្មវិភាគ
+        for m in pat.finditer(txt):
+            w = m.group(0)
+            if len(w) < 2 or w in _NOT_NAMES:
+                continue
+            if w[0] in SURNAMES or w[0] in "小老" or w in ("小宝", "小明", "小红"):
+                cnt[w] = cnt.get(w, 0) + 1
+    names = [n for n, c in sorted(cnt.items(), key=lambda x: (-x[1], x[0])) if c >= min_count]
+    # កុំឱ្យឈ្មោះខ្លីជាប់ក្នុងឈ្មោះវែង
+    out = []
+    for n in names:
+        if not any(n != k and n in k for k in names):
+            out.append(n)
+    return out
+
+
+def name_in_line(raw, names):
+    """ឈ្មោះដែលលេចក្នុងបន្ទាត់ (វែងឈ្នះ)"""
+    for n in sorted(names or [], key=len, reverse=True):
+        if n and n in str(raw or ""):
+            return n
+    return ""
