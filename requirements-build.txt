@@ -8,3 +8,7 @@ python-dotenv
 pyinstaller
 faster-whisper
 av>=11,<19
+torch==2.2.2
+torchaudio==2.2.2
+numpy<2
+demucs==4.0.1

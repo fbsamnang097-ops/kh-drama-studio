@@ -74,6 +74,13 @@ jobs:
             --collect-all av \
             --collect-all onnxruntime \
             --hidden-import faster_whisper \
+            --collect-all demucs \
+            --collect-all torchaudio \
+            --collect-all julius \
+            --collect-all openunmix \
+            --collect-all einops \
+            --collect-all lameenc \
+            --hidden-import demucs.separate \
             launcher.py
 
       - name: Smoke test backend
