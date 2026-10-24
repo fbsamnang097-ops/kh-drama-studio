@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from . import providers as P
 from . import subs as SB
 from . import graph as G
+from . import cast as C
 from . import encode as E
 from . import progress as PR
 
@@ -40,23 +41,50 @@ async def upload(file: UploadFile):
 class Vid(BaseModel): id: str
 @app.post("/api/transcribe")
 def transcribe(b: Vid):
+    """STT → បន្ថែម char (តួអង្គ) ដោយ auto-scan ឥតគិតថ្លៃ (rule based)"""
     mp3 = STORE / f"{b.id}.mp3"
     def run():
         ff("-i", str(STORE / f"{b.id}.mp4"), "-vn", "-ac", "1", "-ar", "16000", "-b:a", "48k", str(mp3))
-        return P.stt(mp3, P.load())
+        segs = P.stt(mp3, P.load())
+        scan = C.scan([s.get("zh", "") for s in segs])   # តួអង្គស្វ័យប្រវត្តិ
+        for s, it in zip(segs, scan["items"]):
+            s["char"] = it["char"]; s["conf"] = it["conf"]
+        return segs
     return guard(run)
+
+class CastIn(BaseModel):
+    lines: list[str]
+    keep: list[str] = []   # char ដែលអ្នកប្រើកែដោយដៃ → រក្សាទុក
+@app.post("/api/cast")
+def cast_scan(b: CastIn):
+    """ស្កេនតួអង្គពីអត្ថបទចិន (ឥតគិតថ្លៃ · មិនត្រូវការ key)"""
+    return C.scan(b.lines, keep=b.keep)
+
+@app.get("/api/characters")
+def characters():
+    """បញ្ជីតួអង្គ + ពណ៌ + សំឡេង សម្រាប់ UI"""
+    out = []
+    for c in C.CHARS:
+        (gender, rate, pitch), _ = P.char_profile(c)
+        out.append({"char": c, "label": C.LABELS[c], "color": C.COLORS[c],
+                    "voice": gender, "rate": rate, "pitch": pitch})
+    return {"characters": out, "default": C.NARR}
 
 class Tr(BaseModel): lines: list[str]
 @app.post("/api/translate")
 def translate(b: Tr): return guard(lambda: P.translate(b.lines, P.load()))
 
-class Sp(BaseModel): text: str; gender: str = "male"; speed: float = 0.0
+class Sp(BaseModel):
+    text: str
+    char: str = ""          # តួអង្គ (男主/女主/老男/老女/小孩/小孩男/旁白)
+    gender: str = "male"    # តម្លៃចាស់ (backward compat)
+    speed: float = 0.0
 @app.post("/api/tts")
 def tts(b: Sp):
     def run():
         name = f"{uuid.uuid4().hex[:10]}.mp3"
-        (STORE / name).write_bytes(P.tts(b.text, b.gender, b.speed, P.load()))
-        return {"url": f"/files/{name}"}
+        (STORE / name).write_bytes(P.tts(b.text, b.char or b.gender, b.speed, P.load()))
+        return {"url": f"/files/{name}", "char": P.char_profile(b.char or b.gender)[1]}
     return guard(run)
 
 def _q(q, quality, src):

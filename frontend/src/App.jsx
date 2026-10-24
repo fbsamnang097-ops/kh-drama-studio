@@ -11,7 +11,16 @@ const api = async (path, body, isForm) => {
   return j;
 };
 const tc = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${(s % 60).toFixed(1).padStart(4, "0")}`;
-const CC = (c) => ({ "男主": "#38bdf8", "女主": "#f472b6", "旁白": "#fbbf24" }[c] || "#a78bfa");   // ពណ៌តាមតួអង្គ
+// តួអង្គ ៧ ប្រភេទ → សំឡេងខុសៗគ្នា (ស្រី = ស្រី · ប្រុស = ប្រុស · ចាស់ · ក្មេង)
+const CHARS = [
+  ["男主", "👨 ប្រុស", "#38bdf8"], ["女主", "👩 ស្រី", "#f472b6"],
+  ["老男", "👴 ចាស់ប្រុស", "#f59e0b"], ["老女", "👵 ចាស់ស្រី", "#fb7185"],
+  ["小孩", "🧒 ក្មេង", "#34d399"], ["小孩男", "👦 ក្មេងប្រុស", "#22d3ee"],
+  ["旁白", "📖 អ្នកនិទាន", "#fbbf24"],
+];
+const CHAR_COLOR = Object.fromEntries(CHARS.map(([k, , c]) => [k, c]));
+const CHAR_LABEL = Object.fromEntries(CHARS.map(([k, l]) => [k, l]));
+const CC = (c) => CHAR_COLOR[c] || "#a78bfa";   // ពណ៌តាមតួអង្គ
 const STEP_C = ["#f472b6", "#fb923c", "#fbbf24", "#34d399", "#22d3ee"];
 const wrapText = (ctx, text, maxW) => {
   const parts = typeof Intl !== "undefined" && Intl.Segmenter ? [...new Intl.Segmenter("km", { granularity: "word" }).segment(text)].map((x) => x.segment) : text.split(/(?<=\s)/);
@@ -56,7 +65,12 @@ function IOGroup({ label, color, formats, disabled, busy, accept, multiple, onEx
       <label className={`btn ghost text-xs !py-0.5 cursor-pointer ${busy ? "opacity-40 pointer-events-none" : ""}`}>⬆ Import<input type="file" hidden accept={accept} multiple={multiple} onChange={(e) => { const fs = [...e.target.files]; e.target.value = ""; if (fs.length) onImport(fs); }} /></label>
     </div>);
 }
-const gender = (c) => (c === "女主" ? "female" : "male");
+const voiceOf = (c) => c || "旁白";
+const summarize = (rows) => {   // "👩 ស្រី 12 · 👨 ប្រុស 9 · 📖 អ្នកនិទាន 4"
+  const n = {};
+  rows.forEach((s) => { if (s.char) n[s.char] = (n[s.char] || 0) + 1; });
+  return CHARS.filter(([k]) => n[k]).map(([k, l]) => `${l} ${n[k]}`).join(" · ");
+};   // backend បម្លែងតួអង្គ → voice + rate + pitch
 
 export default function App() {
   const [video, setVideo] = useState(null);           // {id,url}
@@ -66,6 +80,7 @@ export default function App() {
   const [dur, setDur] = useState(60);
   const [zoom, setZoom] = useState(20);               // px ក្នុង ១ វិនាទី
   const [busy, setBusy] = useState("");
+  const [castMsg, setCastMsg] = useState("");   // សារសង្ខេបពី auto-scan តួអង្គ
   const [showSet, setShowSet] = useState(false);
   const [exported, setExported] = useState(false);
   const [showSub, setShowSub] = useState(true);       // បង្ហាញ/បិទ អក្សរលើវីដេអូ (និង Export)
@@ -103,8 +118,10 @@ export default function App() {
       const fd = new FormData(); fd.append("file", f);
       const v = await api("/api/upload", fd, true); setVideo(v);
       setBusy("កំពុងទាញអត្ថបទចិន (STT)...");
-      const r = await api("/api/transcribe", { id: v.id });
-      setSegs(r.map((s, i) => ({ ...s, id: i + 1, km: "", char: "男主", status: "Pending", audio: "" })));
+      const r = await api("/api/transcribe", { id: v.id });   // រួមទាំង auto-scan តួអង្គ
+      const scanned = r.filter((s) => s.char).length;
+      setSegs(r.map((s, i) => ({ ...s, id: i + 1, km: "", char: s.char || "旁白", conf: s.conf, status: "Pending", audio: "" })));
+      if (scanned) setTimeout(() => setCastMsg(`✨ Auto-scan តួអង្គ ${scanned} បន្ទាត់ · ${summarize(r)}`), 50);
     } catch (e) { alert(e.message); }
     setBusy("");
   };
@@ -156,6 +173,14 @@ export default function App() {
     if (r.length !== segs.length) alert(`Import សំឡេង ${r.length} / ${segs.length} segments (លេខនៅដើមឈ្មោះ file = លំដាប់ segment)`);
   });
 
+  // Auto-scan តួអង្គ (ឥតគិតថ្លៃ) — រក្សាការកែដោយដៃ
+  const scanChars = runWith("កំពុងស្កេនតួអង្គ...", async () => {
+    if (!segs.length) throw new Error("សូម Transcribe ឬ Import STT ជាមុន");
+    const r = await api("/api/cast", { lines: segs.map((s) => s.zh || ""), keep: segs.map((s) => (s.manualChar ? s.char : "")) });
+    setSegs((cur) => cur.map((x, i) => ({ ...x, char: r.items[i]?.char || x.char, conf: r.items[i]?.conf })));
+    setCastMsg(`✨ រកឃើញតួអង្គ · ${r.summary}`);
+  });
+
   const translate = run("កំពុងបកប្រែ...", async () => {
     const r = await api("/api/translate", { lines: segs.map((s) => s.zh) });
     setSegs((s) => s.map((x, i) => ({ ...x, km: r[i]?.km ?? x.km, char: r[i]?.char ?? x.char })));
@@ -166,7 +191,7 @@ export default function App() {
       if (!s.km) continue; patch(s.id, { status: "Generating" });
       let ok = false;
       for (let t = 0; t < 3 && !ok; t++) {
-        try { const r = await api("/api/tts", { text: s.km, gender: gender(s.char), speed: 0 }); patch(s.id, { audio: r.url, status: "Done" }); ok = true; }
+        try { const r = await api("/api/tts", { text: s.km, char: voiceOf(s.char), speed: 0 }); patch(s.id, { audio: r.url, status: "Done" }); ok = true; }
         catch (e) { console.error("TTS failed:", s.km, e); await new Promise((res) => setTimeout(res, 1000 * (t + 1))); }
       }
       if (!ok) { patch(s.id, { status: "Error" }); failed++; }
@@ -383,8 +408,9 @@ export default function App() {
       {/* ២. Subtitle Editor */}
       <section className="pnl pnl-violet p-3 pt-4 flex flex-col min-h-0 min-w-0">
         <div className="flex gap-2 mb-2 flex-wrap items-center">
-          <B c="violet" onClick={addText}>+ Add Text</B><B c="red" onClick={del}>Delete</B><B c="amber" onClick={findReplace}>Find &amp; Replace</B><B c="pink" onClick={translate}>Scan Characters</B>
+          <B c="violet" onClick={addText}>+ Add Text</B><B c="red" onClick={del}>Delete</B><B c="amber" onClick={findReplace}>Find &amp; Replace</B><B c="pink" onClick={scanChars}>🔍 Scan Characters (ឥតគិតថ្លៃ)</B>
           <span className="text-xs opacity-70">{busy}</span>
+          {castMsg && <span className="text-xs" style={{ color: "#6ee7b7" }}>{castMsg}</span>}
 
         </div>
         <div className="flex flex-wrap gap-2 mb-2">
@@ -412,7 +438,15 @@ export default function App() {
                 <td><input className="w-14" value={s.end.toFixed(1)} onChange={(e) => patch(s.id, { end: +e.target.value || 0 })} /></td>
                 <td><textarea rows={2} className="w-full resize-none leading-snug" value={s.zh} onChange={(e) => patch(s.id, { zh: e.target.value })} /></td>
                 <td><textarea rows={2} className="w-full resize-none leading-snug" value={s.km} onChange={(e) => patch(s.id, { km: e.target.value, status: "Pending", audio: "" })} /></td>
-                <td className="whitespace-nowrap"><i className="dot" style={{ background: CC(s.char) }} /><input className="w-14" value={s.char} onChange={(e) => patch(s.id, { char: e.target.value })} /></td>
+                <td className="whitespace-nowrap">
+                  <i className="dot" style={{ background: CC(s.char) }} title={s.conf ? `ជឿជាក់ ${Math.round(s.conf * 100)}%` : ""} />
+                  <select className="w-[104px] rounded px-1 py-0.5 text-xs" value={CHAR_LABEL[s.char] ? s.char : "旁白"}
+                    title={s.conf ? `Auto-scan ជឿជាក់ ${Math.round(s.conf * 100)}% · អាចកែបាន` : "ជ្រើសតួអង្គ"}
+                    style={{ background: "#1a1245", border: `1px solid ${CC(s.char)}88`, color: "#fff" }}
+                    onChange={(e) => patch(s.id, { char: e.target.value, manualChar: true })}>
+                    {CHARS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                  </select>
+                </td>
                 <td><span className={`chip chip-${s.status}`}>{s.status}</span></td>
               </tr>))}</tbody>
           </table>
