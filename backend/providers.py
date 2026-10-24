@@ -30,6 +30,42 @@ CATALOG = {
     "openai": {"key": True, "model": "gpt-4o-mini-tts", "male": "onyx", "female": "nova"},
     "custom": {"key": True, "model": "tts-1", "male": "onyx", "female": "nova", "base": True}},
 }
+# ---------- តួអង្គ → សំឡេង (ឥតគិតថ្លៃ ជាមួយ edge-tts) ----------
+# (voice gender, rate, pitch) — edge-tts គាំទ្រ rate និង pitch ដោយផ្ទាល់
+# សំឡេងខ្មែរមានតែ ២ (Piseth ប្រុស · Sreymom ស្រី) ដូច្នេះយើងបង្កើតមនុស្សចាស់/ក្មេង
+# ដោយបន្ថយ/បង្កើន ល្បឿន (rate) និង សំឡេង (pitch) ឱ្យខុសគ្នាច្បាស់
+CHAR_VOICES = {
+    "男主":   ("male",   "+0%",  "+0Hz"),    # 👨 ប្រុស
+    "女主":   ("female", "+0%",  "+0Hz"),    # 👩 ស្រី
+    "老男":   ("male",   "-15%", "-30Hz"),   # 👴 ចាស់ប្រុស (យឺត · ធ្ងន់)
+    "老女":   ("female", "-15%", "-25Hz"),   # 👵 ចាស់ស្រី
+    "小孩":   ("female", "+12%", "+40Hz"),   # 🧒 ក្មេង
+    "小孩男": ("male",   "+12%", "+35Hz"),   # 👦 ក្មេងប្រុស
+    "旁白":   ("male",   "-6%",  "-10Hz"),   # 📖 អ្នកនិទាន (ស្ងប់)
+}
+CHAR_DEFAULT = "旁白"
+
+
+def char_profile(char):
+    """តួអង្គ → (gender, rate%, pitchHz) ជាមួយ normalize"""
+    try:
+        from .cast import normalize as _norm
+    except ImportError:
+        def _norm(x): return x
+    c = _norm(char) or CHAR_DEFAULT
+    return CHAR_VOICES.get(c, CHAR_VOICES[CHAR_DEFAULT]), c
+
+
+def _add_rate(base, extra):
+    """'+0%' + speed → '+10%'"""
+    def num(v):
+        try:
+            return int(str(v).strip().rstrip("%").replace("+", ""))
+        except ValueError:
+            return 0
+    return f"{num(base) + int(round(extra * 100)):+d}%"
+
+
 BASES = {"codecraft": "https://codecraftapi.com/v1", "openai": "https://api.openai.com/v1", "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
          "groq": "https://api.groq.com/openai/v1", "deepseek": "https://api.deepseek.com/v1", "openrouter": "https://openrouter.ai/api/v1",
          "mistral": "https://api.mistral.ai/v1", "together": "https://api.together.xyz/v1"}
@@ -94,8 +130,11 @@ def stt(audio_path, cfg):
     return [{"start": s["start"], "end": s["end"], "zh": s["text"].strip()} for s in r.json()["segments"]]
 
 # ---------- Translation zh -> km ----------
-PROMPT = ("Translate each Chinese line to natural spoken Khmer for drama dubbing. Also guess the speaker: "
-          "'男主' (male lead), '女主' (female lead) or '旁白' (narrator). Reply ONLY with a JSON array "
+PROMPT = ("Translate each Chinese line to natural spoken Khmer for drama dubbing. Also guess the speaker and pick "
+          "EXACTLY one of these codes: '男主' (adult male), '女主' (adult female), '老男' (old man), "
+          "'老女' (old woman), '小孩' (child), '小孩男' (boy child), '旁白' (narrator / no dialogue). "
+          "Use the name or pronoun before the speech verb (他说/她说/爷爷/奶奶/小孩). Narrator lines are "
+          "description with no quoted speech. Reply ONLY with a JSON array "
           'of {"km":"...","char":"..."} in the same order and length.\n')
 def _chat(cfg, p, msg):
     model = model_for(cfg, "translate", p); key = _key(cfg, "translate", p)
@@ -172,18 +211,27 @@ def translate(lines, cfg):
                     + json.dumps(prev, ensure_ascii=False) + "\nLines to translate:\n")
         t_ = _chat(cfg, p, msg + json.dumps(chunk, ensure_ascii=False))
         got = json.loads(t_[t_.index("["): t_.rindex("]") + 1])
+        for g in got:   # តួអង្គពី AI → កូដស្តង់ដារ (មិនឱ្យសំឡេងខុស)
+            if isinstance(g, dict) and g.get("char"):
+                try:
+                    from .cast import normalize as _norm
+                    g["char"] = _norm(g["char"])
+                except ImportError:
+                    pass
         out += (got + [{}] * len(chunk))[:len(chunk)]
     return out
 
 # ---------- Text-to-Speech (Khmer) ----------
-def tts(text, gender, speed, cfg):
+def tts(text, char, speed, cfg):
+    """char = តួអង្គ (男主/女主/老男/老女/小孩/小孩男/旁白) ឬ 'male'/'female' ចាស់"""
     p = prov(cfg, "tts"); c = CATALOG["tts"][p]
+    (gender, rate, pitch), _char = char_profile(char)
     voice = _g(cfg, f"tts_{gender}_{p}", c[gender])
     if p == "edge":   # ឥតគិតថ្លៃ គ្មាន Key
         import edge_tts
         async def go():
             out = bytearray()
-            async for ch in edge_tts.Communicate(text, voice, rate=f"{round(speed*100):+d}%").stream():
+            async for ch in edge_tts.Communicate(text, voice, rate=_add_rate(rate, speed), pitch=pitch).stream():
                 if ch["type"] == "audio": out += ch["data"]
             return bytes(out)
         text = " ".join((text or "").split())
@@ -200,14 +248,16 @@ def tts(text, gender, speed, cfg):
         raise RuntimeError(f"Edge TTS មិនបានផ្តល់សំឡេង: {text[:40]}")
     key = _key(cfg, "tts", p)
     if p == "azure":
-        ssml = f"<speak version='1.0' xml:lang='km-KH'><voice name='{voice}'><prosody rate='{round(speed*100):+d}%'>{escape(text)}</prosody></voice></speak>"
+        ssml = (f"<speak version='1.0' xml:lang='km-KH'><voice name='{voice}'>"
+                f"<prosody rate='{_add_rate(rate, speed)}' pitch='{pitch}'>{escape(text)}</prosody></voice></speak>")
         r = httpx.post(f"https://{_g(cfg,'azure_region','southeastasia')}.tts.speech.microsoft.com/cognitiveservices/v1",
             headers={"Ocp-Apim-Subscription-Key": key, "Content-Type": "application/ssml+xml", "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3"},
             content=ssml.encode(), timeout=120)
     elif p == "google":
         r = httpx.post("https://texttospeech.googleapis.com/v1/text:synthesize", params={"key": key}, timeout=120,
             json={"input": {"text": text}, "voice": {"languageCode": "km-KH", "name": voice},
-                  "audioConfig": {"audioEncoding": "MP3", "speakingRate": 1 + speed}})
+                  "audioConfig": {"audioEncoding": "MP3", "speakingRate": 1 + speed,
+                                  "pitch": max(-20.0, min(20.0, float(str(pitch).rstrip("Hz") or 0) / 7.0))}})
         r.raise_for_status(); return base64.b64decode(r.json()["audioContent"])
     elif p == "elevenlabs":
         r = httpx.post(f"https://api.elevenlabs.io/v1/text-to-speech/{voice}", headers={"xi-api-key": key}, timeout=120,
