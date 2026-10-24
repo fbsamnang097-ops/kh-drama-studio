@@ -5,6 +5,8 @@ from pydantic import BaseModel
 from . import providers as P
 from . import subs as SB
 from . import graph as G
+from . import encode as E
+from . import progress as PR
 
 from .paths import ROOT, STORE   # exe: STORE ក្នុង folder អ្នកប្រើ
 
@@ -60,7 +62,8 @@ def tts(b: Sp):
 def _q(q, quality, src):
     q = dict(q)
     if quality == "hd":
-        q.update(preset="medium", crf=17, abr="192k", hd=True)
+        # រក្សា preset របស់ tier (កុំធ្វើឱ្យយឺត) តែបង្កើនគុណភាពបន្តិច
+        q.update(crf=min(int(q.get("crf", 20)), 21), abr="192k", hd=True)
         try:
             r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", str(STORE / src)], capture_output=True, text=True)
             w, h = [int(x) for x in r.stdout.strip().split(",")[:2]]
@@ -78,26 +81,43 @@ def _layers(b):
 
 class Ex(BaseModel):
     id: str; segments: list[dict]; subs: bool = True; blank: str = ""; bgm: str = ""; quality: str = ""
+    speed: str = ""           # "fast" = លឿនបំផុត (veryfast/crf23) · "" = តាម tier
     layers: list[dict] = []   # [{kind, file|data, x, y, size, opacity}] — Logo / Sponsor / Overlay / Khmer Text
     boxes: list[dict] = []    # [{x,y,w,h,strength,start,end,follow,kf}] — Blur
+
+def _fast(q):
+    """របៀបលឿនបំផុត៖ preset លឿន + crf ខ្ពស់បន្តិច (ភ្នែកមើលស្ទើរមិនឃើញខុស)"""
+    q = dict(q); q.update(preset="veryfast", crf=max(22, int(q.get("crf", 20)) + 3), abr="160k")
+    return q
+
 @app.post("/api/export")
 def export(b: Ex):
-    """Export ទាំងអស់ក្នុង pass តែមួយ: អក្សរខ្មែរ + សំឡេង + BGM + Layer + Blur"""
+    """Export ទាំងអស់ក្នុង pass តែមួយ: អក្សរខ្មែរ + សំឡេង + BGM + Layer + Blur
+
+    ដំណើរការជា background job (ដើម្បីបង្ហាញ progress) → {"job": true}
+    បន្ទាប់មក poll `GET /api/export_status?id=...` រហូត state = done|error
+    """
     vid = pathlib.Path(b.id).name
+    cur = PR.JOBS.get(vid) or {}
+    if cur.get("state") == "running":
+        raise HTTPException(409, "កំពុង Export វីដេអូនេះ — សូមរង់ចាំ")
     src, out, srt = STORE / f"{vid}.mp4", STORE / f"{vid}_km.mp4", STORE / f"{vid}.srt"
     t = lambda s: f"{int(s//3600):02}:{int(s%3600//60):02}:{int(s%60):02},{int(s*1000)%1000:03}"
     srt.write_text("\n".join(f"{i+1}\n{t(s['start'])} --> {t(s['end'])}\n{s['km']}\n" for i, s in enumerate(b.segments)), encoding="utf-8")
     clips = [s for s in b.segments if s.get("audio")]
     if not clips: raise HTTPException(400, "សូមចុច Generate Khmer Audio ជាមុន")
     track = SB.write_track(STORE, vid, b.segments, b.blank) if (b.subs and b.blank) else None
-    q = _q(P.TIERS[P.tier(P.load())]["export"], b.quality, src.name)   # Standard = លឿន, Premium = គុណភាពខ្ពស់
+    q = P.TIERS[P.tier(P.load())]["export"]   # Standard = លឿន, Premium = គុណភាពខ្ពស់
+    if b.speed == "fast": q = _fast(q)
+    q = _q(q, b.quality, src.name)
     layers, boxes = _layers(b)
     bgm = _bgm(b.bgm)
-    need_px = bool(layers or boxes or q.get("hd") or bgm)
-    W, H = G.probe(STORE, src.name) if need_px else (0, 0)
-    dur = G.duration(STORE, src.name) if bgm else 0.0
-    guard(lambda: ff(*SB.export_args(src.name, clips, track, out.name, q, bgm, layers, boxes, W, H, dur)))
-    return {"url": f"/files/{out.name}", "layers": G.wm_order(b.layers), "blur": len(boxes)}
+    W, H = G.probe(STORE, src.name)
+    dur = G.duration(STORE, src.name) or 0.0
+    args = SB.export_args(src.name, clips, track, out.name, q, bgm, layers, boxes, W, H, dur, E.video_args(q["preset"], q["crf"]))
+    job = PR.run_job(STORE, args, vid, dur)
+    job["url"] = f"/files/{out.name}"
+    return {"job": True, "encoder": E.best()}
 
 class TE(BaseModel): segments: list[dict]; kind: str = "mp3"; bgm: str = ""   # segments: {n,start,end,zh,km,char,audio}
 @app.post("/api/tts_export")
@@ -185,4 +205,6 @@ from .layers import register as _reg_layers; _reg_layers(app, STORE, ff, guard)
 from .blur import register as _reg_blur; _reg_blur(app, STORE, ff, guard)
 
 from .finish import register as _reg_finish; _reg_finish(app, STORE, ff, guard)
+
+from .progress import register as _reg_prog; _reg_prog(app, STORE, guard)
 from .appinfo import register as _reg_info; _reg_info(app)

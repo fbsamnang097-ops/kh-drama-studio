@@ -73,7 +73,9 @@ def layer_inputs(store, layers):
             elif low.endswith(".gif"):
                 args = ["-ignore_loop", "0", "-i", name]
             else:
-                args = ["-loop", "1", "-i", name]
+                # រូបនៅស្ងៀម (PNG/JPG/WebP) → loop ១ fps គឺគ្រប់គ្រាន់ និងសន្សំ CPU
+                # (format/scale របស់ layer មិនត្រូវគណនាឡើងវិញរាល់ frame ទេ)
+                args = ["-loop", "1", "-framerate", "1", "-i", name]
             out.append((args, name, L))
     return out
 
