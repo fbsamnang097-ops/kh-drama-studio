@@ -1,6 +1,8 @@
 import { createPortal } from "react-dom";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import OverlayPanel from "./OverlayPanel.jsx";
+import { LAYERS, initLayers, resetLayers } from "./layers.js";
+import { renderTextPng } from "./textPix.js";
 
 const api = async (path, body, isForm) => {
   const r = await fetch(path, body ? { method: "POST", ...(isForm ? { body } : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }) } : undefined);
@@ -70,10 +72,18 @@ export default function App() {
   const [ar, setAr] = useState(9 / 16);
   const [vs, setVs] = useState({ w: 1080, h: 1920 });   // ទំហំវីដេអូពិត (px)                // aspect ratio ពិតរបស់វីដេអូ
   const [bgm, setBgm] = useState("");
+  const [layers, setLayers] = useState(initLayers);   // 🏷️ Logo ⭐ Sponsor 🖼️ Overlay ©️ Khmer Text
+  const [blurBoxes, setBlurBoxes] = useState([]);      // 🔲 Blur (ក្នុង pass តែមួយជាមួយ layer)
   const [tier, setTier] = useState("standard");        // standard | premium
   useEffect(() => { api("/api/settings").then((s) => setTier(s.tier || "standard")).catch(() => {}); }, [showSet]);
   const switchTier = async (k) => { const prev = tier; setTier(k); try { await api("/api/settings", { tier: k }); } catch (e) { setTier(prev); alert(e.message); } };
   const vref = useRef(); const played = useRef(null);
+
+  // វីដេអូថ្មី → លុប file layer ចាស់ និង blur box ចាស់ (រក្សាទីតាំង/ទំហំដែលបានកំណត់)
+  useEffect(() => {
+    setLayers((s) => resetLayers(s));
+    setBlurBoxes([]);
+  }, [video?.id]);
 
   const patch = (id, p) => setSegs((s) => s.map((x) => (x.id === id ? { ...x, ...p } : x)));
   const run = (label, fn) => async () => { setBusy(label); try { await fn(); window.khOk && window.khOk(label); } catch (e) { alert(e.message); } setBusy(""); };
@@ -192,15 +202,70 @@ export default function App() {
             <input type="radio" name="expq" checked={expQ === v} onChange={() => setExpQ(v)} />
             <span><span className="block text-sm font-semibold">{t}</span><span className="block text-xs opacity-70">{d}</span></span>
           </label>))}
+        <div className="text-sm font-semibold">បញ្ចូលក្នុង Export (pass តែមួយ)</div>
+        <div className="glass p-2 text-xs space-y-0.5">
+          {[
+            [showSub && segs.some((s) => s.km), `💬 អក្សរខ្មែរ (${segs.filter((s) => s.km).length} បន្ទាត់)`],
+            [segs.some((s) => s.audio), `🎙️ សំឡេងខ្មែរ (${segs.filter((s) => s.audio).length} ឃ្លា)`],
+            [!!bgm, "🎵 BGM (ducking)"],
+            ...LAYERS.filter((L) => layers[L.k].on).map((L) => [true, L.label]),
+            [blurBoxes.length > 0, `🔲 Blur (${blurBoxes.length} box)`],
+          ].map(([on, label]) => (
+            <div key={label} style={{ color: on ? "#a7f3d0" : "#ffffff55" }}>{on ? "✅" : "⬜"} {label}</div>
+          ))}
+        </div>
         <div className="text-sm font-semibold">កន្លែងរក្សាទុក</div>
         <div className="flex gap-2 items-center"><button className="ghost" onClick={pickSave}>📁 Browse...</button><span className="text-xs opacity-70 truncate">{saveName || "មិនទាន់ជ្រើស (ទៅ Downloads)"}</span></div>
         <div className="flex gap-2 justify-end"><button className="ghost" onClick={() => setShowExp(false)}>បោះបង់</button><button className="neon" onClick={() => { setShowExp(false); exportV(); }}>Export</button></div>
       </div>
     </div>, document.body) : null;
+  // ទទឹងវីដេអូពេល Export (HD = upscale ទៅ 1080p) → អក្សរខ្មែរគូរត្រូវទំហំពិត មិនព្រិល
+  const outW = useMemo(() => {
+    const w = vs.w || 1080, h = vs.h || 1920;
+    if (expQ !== "hd") return w;
+    const m = Math.min(w, h);
+    return m >= 1080 ? w : Math.round(w * 1080 / m);
+  }, [expQ, vs]);
+
+  // Layer ដែលបើក → payload សម្រាប់ Export / Apply (Khmer Text → PNG គុណភាពពេញ)
+  const layerPayload = useCallback(async () => {
+    const out = [];
+    for (const L of LAYERS) {
+      const s = layers[L.k];
+      if (!s.on) continue;
+      const one = { kind: L.k, enabled: true, x: s.x, y: s.y, size: s.size, opacity: s.op };
+      if (L.k === "text") {
+        if (!s.text.trim()) continue;
+        one.data = await renderTextPng(s.text, s.color, outW, s.size);
+        if (!one.data) continue;
+      } else {
+        if (!s.url) continue;
+        one.file = s.url;
+      }
+      out.push(one);
+    }
+    return out;
+  }, [layers, outW]);
+
+  const blurPayload = useCallback(() => blurBoxes.map(({ id, ...b }) => b), [blurBoxes]);
+
+  // Apply ក្រោយ Export រួច: Layers + Blur ក្នុង pass តែមួយ
+  const applyFx = runWith("កំពុងដាក់ Layers + Blur...", async () => {
+    if (!video) throw new Error("សូម Upload វីដេអូជាមុន");
+    const ly = await layerPayload(), bx = blurPayload();
+    if (!ly.length && !bx.length) throw new Error("គ្មាន Layer ឬ Blur ដែលបានបើក");
+    const r = await api("/api/finish", { id: video.id, layers: ly, boxes: bx });
+    const a = document.createElement("a"); a.href = r.url; a.download = ""; a.click();
+  });
+
   const exportV = run("កំពុង Export...", async () => {
     let pngs = [], blank = "";
     if (showSub) ({ pngs, blank } = await renderSubs(segs, vs.w, vs.h));
-    const r = await api("/api/export", { id: video.id, segments: segs.map((s, i) => ({ ...s, png: pngs[i] || "" })), subs: showSub, blank, bgm, quality: expQ });
+    const [ly, bx] = [await layerPayload(), blurPayload()];   // Logo/Sponsor/Overlay/Text + Blur ក្នុង Export តែមួយ
+    const r = await api("/api/export", {
+      id: video.id, segments: segs.map((s, i) => ({ ...s, png: pngs[i] || "" })),
+      subs: showSub, blank, bgm, quality: expQ, layers: ly, boxes: bx,
+    });
     setExported(true); await saveOut(r.url);
   });
   const [bgmVol, setBgmVol] = useState(0.5);
@@ -291,7 +356,7 @@ export default function App() {
             {bgm && <button className="btn ghost text-xs" onClick={() => setBgm("")}>✕ Remove BGM</button>}
             {bgm && <label className="flex items-center gap-2 text-xs">🔊 BGM<input type="range" min="0" max="1" step="0.05" value={bgmVol} onChange={(e) => setBgmVol(+e.target.value)} className="flex-1" /></label>}
           </>
-          <OverlayPanel video={video} />
+          <OverlayPanel video={video} layers={layers} setLayers={setLayers} boxes={blurBoxes} setBoxes={setBlurBoxes} onApply={applyFx} />
         </div>
         <div className="overflow-auto flex-1 text-sm">
           <table className="w-full table-fixed"><colgroup>{[30, 34, 62, 62, null, null, 100, 84].map((w, i) => <col key={i} style={w ? { width: w } : undefined} />)}</colgroup>
