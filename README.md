@@ -117,38 +117,51 @@ pip install demucs
 
 * * *
 
-## 🎭 Character & Voice Assignment (v1.0.17) — វិភាគសំឡេងពិត
+## 🎭 តួអង្គ & សំឡេងថេរ — SQLite Registry (v1.0.18)
 
-តួអង្គនីមួយៗ ទទួល **សំឡេងថេរមួយ** ពេញរឿង។ ការកំណត់តួអង្គលែងពឹងលើឈ្មោះចិនតែមួយទៀត —
-ឥឡូវវាស់ **សំឡេងពិត (F0)** ពីវីដេអូដោយផ្ទាល់។
+តួអង្គម្នាក់ = **ID មួយ** + **សំឡេងមួយ** ពេញរឿង និងឆ្លងការ restart · reload · បកប្រែឡើងវិញ · export។
+v1.0.18 ដោះស្រាយបញ្ហាចម្បង៖ តួអង្គដដែលធ្លាយបាត់ ID ពេលឆ្លងឆាក និងសំឡេងប្តូរតាម segment។
 
 ### ស្ថាបត្យកម្ម
 ```
-video ──► diarize.py ─────► identity.py ─────► voices.py ──► providers.tts()
-         (ffmpeg → F0)      (fusion + IDs)     (voice book)    (edge-tts)
-                             ▲
-      អត្ថបទចិន ────────────┘  (ឈ្មោះ · សម្រង់សម្ដី · ពាក្យអាយុ)
+video ──► diarize.py ─────► scenes.py ──► identity.py ──► registry.py (SQLite)
+         (F0 · ZCR ·         (ឆាក)        (ភ្ជាប់តួអង្គ)   (ID + សំឡេង ថេរ)
+          k-means)
+                                              │
+        អត្ថបទចិន ───────────────────────────┘
+                                              ▼
+                         /api/tts (char_id) ──► providers.tts() ──► mp3
+                                              ▼
+                         /api/export ──► {video}.voices.json (manifest)
 ```
 
-### ១. វិភាគសំឡេង (`backend/diarize.py` · ថ្មី)
-- អានសំឡេងពីវីដេអូ → s16le 8 kHz → **autocorrelation F0** (pure Python · គ្មាន library)
-- ចាត់ថ្នាក់៖ ប្រុស 85–155 Hz · ស្រី 165–255 Hz · ក្មេង 250–400 Hz
-- **Clustering**៖ segment ដែល F0 ជិតគ្នា → អ្នកនិយាយតែមួយ (គ្មាន random)
-- រង្វាស់បន្ថែម៖ clarity · voiced ratio · jitter · RMS · ZCR
+### ១. បែងចែកអ្នកនិយាយ (`backend/diarize.py`)
+- ffmpeg → s16le 8 kHz → **autocorrelation F0** + ZCR + voiced ratio (pure Python)
+- **k-means គ្មាន random** (ចាប់ផ្តើមពី quantile F0) + **silhouette** ជ្រើស k ល្អបំផុត
+- distance = `|Δlog(F0)| / 0.15 + |ΔZCR| / 0.06`
+- clustering ជា **global** (គ្រប់ឆាក) → តួអង្គនៅឆាក ១ · ៥ · ១២ = cluster តែមួយ
 
-### ២. ការសម្រេចតួអង្គ (`backend/identity.py` · ថ្មី)
-លំដាប់អាទិភាព (តាមតម្រូវការ)៖
-1. **សំឡេងពិត** → ភេទ/អាយុ (ឈ្នះអត្ថបទ)
-2. សម្រង់សម្ដី + កិរិយាសព្ទ (`小明说` `王大姐怒道`)
-3. ឈ្មោះ (នាមត្រកូល + 小/老) + ពាក្យអាយុ (`爷爷` `小孩`) — **លុះត្រាតែជាអ្នកនិយាយ**
-4. ការឆ្លាស់វេនសន្ទនា
-5. មិនដឹង → **unknown** (មិនប្រឌិតភេទ)
+### ២. ឆាក (`backend/scenes.py` · ថ្មី)
+`ffmpeg select='gt(scene,0.35)'` → បើរកមិនឃើញ → ចន្លោះសម្ងាត់ > 2.5 វិនាទី → បើគ្មាន → ១ ឆាក។
+បង្ហាញចំនួនឆាកក្នុងប្រអប់ 🎭 និងប្រើសម្រាប់ភ្ជាប់តួអង្គឆ្លងឆាក។
 
-- **cluster ១ = តួអង្គ ១ = សំឡេង ១** (ថេរពេញរឿង)
-- ឈ្មោះដដែល → សំឡេងដដែល ឆ្លងភាគ (`storage/voicebook.json`)
-- បើអត្ថបទផ្ទុយនឹងសំឡេង → យកសំឡេង ហើយបង្ហាញ ⚠
+### ៣. Registry (`backend/registry.py` · ថ្មី) — SQLite
+`DATA/kh_drama.db` (dev = root repo · app = `%APPDATA%\KHDramaStudio`)
 
-### ៣. សំឡេង (`backend/voices.py` · ថ្មី) — ១៩ voice profile
+| តារាង | ជួរឈរ |
+|---|---|
+| `projects` | pid · video · created · updated |
+| `characters` | **cid** · pid · name · gender · age · role · voice_provider · **voice_id** · **auto_voice** · assignment(auto/manual) · conf · fp_f0 · fp_zcr · first_seen · last_seen |
+| `segments` | pid+idx · cid · voice_id · start · end · zh · km · audio |
+
+ការភ្ជាប់តួអង្គ (identity)៖
+1. **ឈ្មោះដូចគ្នា** ក្នុងគម្រោង → តួអង្គដដែល
+2. គ្មានឈ្មោះ → **fingerprint (F0 + ZCR)** → តួអង្គដដែល
+3. ខុសគ្នាពិត → ID ថ្មី (`c1`, `c2`, … មិនជាន់លេខចាស់)
+4. **manual ឈ្នះជានិច្ច** — `upsert_character(keep_voice=True)` មិនប៉ះសំឡេងដៃ
+5. `reset_manual` → ត្រឡប់ទៅ `auto_voice` ដើម (មិនរក្សាសំឡេងជ្រើសដៃ)
+
+### ៤. សំឡេង & provider (`backend/voices.py` · `providers.py`) — ១៩ profile
 
 | ក្រុម | សំឡេង | rate | pitch | volume |
 |---|---|---|---|---|
@@ -162,36 +175,49 @@ video ──► diarize.py ─────► identity.py ─────► voi
 | 📖 អ្នកនិទាន ×២ | Piseth/Sreymom | −7/−6% | −8/−6Hz | −2% |
 | ❔ មិនដឹង | Piseth | −3% | −3Hz | −3% |
 
-> ⚠️ **ដែនកំណត់ provider៖** edge-tts (ឥតគិតថ្លៃ) មានសំឡេងខ្មែរ **តែ ២** — Piseth (ប្រុស) និង Sreymom (ស្រី)។
-> ចាស់/ក្មេង/តួប្រុស ២ នាក់ ត្រូវបង្កើតដោយ `rate` + `pitch` + `volume` (ជិតបំផុតដែលអាចធ្វើបានដោយឥតគិតថ្លៃ)។
-> បើកំណត់ Azure/Google/ElevenLabs ក្នុង Settings → ប្រើសំឡេងពិតរបស់ពួកគេ។
-
-### ៤. UI — ប្រអប់ **🎭 តួអង្គ & សំឡេង**
-- តារាង៖ `#` · ឈ្មោះតួអង្គ · ភេទ · អាយុ · **សំឡេង (dropdown)** · ចំនួនបន្ទាត់ · របារភាពជឿជាក់ · 🔊 សាកស្តាប់
-- **☑ ស្កេនស្វ័យប្រវត្តិ** — រត់ភ្លាមក្រោយ Transcribe (រក្សាក្នុង localStorage)
-- **🔍 Re-detect Characters** — វិភាគសំឡេងឡើងវិញ
-- **✨ Auto Assign Voice** — លុបការជ្រើសដោយដៃ រួចចាត់សំឡេងស្វ័យប្រវត្តិឡើងវិញ
-- **ការជ្រើសដោយដៃ (✋)** ឈ្នះស្វ័យប្រវត្តិ ជារៀងរហូត រហូតដល់ Auto Assign
+- ភេទ **មិនដែលប្តូរ**៖ ចាស់ស្រី → Sreymom ជានិច្ច · ចាស់ប្រុស → Piseth ជានិច្ច
+- `GET /api/voices` → **provider voices ពិត** (`edge_tts.list_voices`) + `verified` + `limitations`
+- អត់ internet → `verified:false` និងបង្ហាញតែ voice id ដែលដឹងច្បាស់ (មិនប្រឌិត)
+- `KH_TTS_STUB=1` → tone offline **សម្រាប់តេស្តតែប៉ុណ្ណោះ**
 
 ### ៥. API
 | Method | Path | ការងារ |
 |---|---|---|
-| POST | `/api/characters/detect` | `{id, segments}` → តួអង្គ + ការចាត់បន្ទាត់ (diarization) |
-| POST | `/api/characters/assign` | `{id, overrides:{char_id:voice}, reset}` |
-| GET | `/api/characters?id=` | បញ្ជីសំឡេង ១៩ + cast ដែលរក្សាទុក |
+| POST | `/api/characters/detect` | `{id, project, segments, use_audio, reassign}` → តួអង្គ + items + scenes + provider |
+| POST | `/api/characters/assign` | `{id, project, overrides:{cid:voice}, reset}` → manual រក្សាក្នុង DB |
+| GET | `/api/project/{pid}` | ផ្ទុកតួអង្គ + segments ឡើងវិញ (ក្រោយ restart) |
+| GET | `/api/export_manifest?id=` | បន្ទាត់ → តួអង្គ → សំឡេងដែលប្រើពិត (`match`) |
+| GET | `/api/voices` · POST `/api/voices/refresh` | provider voices ពិត + ដែនកំណត់ |
+| POST | `/api/tts` | `{text, char_id, video, idx}` → **សំឡេងពី DB** + កត់ត្រា segment |
 | POST | `/api/voice_preview` | `{voice, text}` → mp3 សាកស្តាប់ |
-| POST | `/api/tts` | `{text, char, char_id, video}` → mp3 តាមតួអង្គ |
 
-### ៦. Acceptance Tests (`tests/test_characters.py`)
-បង្កើតវីដេអូសាកល្បងជាមួយ F0 ពិត រួចរត់ pipeline ពិត៖
+### ៦. UI — 🎭 តួអង្គ & សំឡេង
+- តារាង៖ `#` · ឈ្មោះ · ភេទ · អាយុ · **សំឡេង (dropdown ក្នុងប្រអប់តែប៉ុណ្ណោះ)** · បន្ទាត់ · ភាពជឿជាក់ · 🔊
+- `⚙` ស្វ័យប្រវត្តិ · `✋` ជ្រើសដៃ · `✎` កែភេទ/អាយុ · `⚑` សំឡេងដៃខុសភេទ · `⚠` អត្ថបទផ្ទុយសំឡេង
+- **🔍 Re-detect Characters** · **✨ Auto Assign Voice** (reset → auto) · **☑ ស្កេនស្វ័យប្រវត្តិ**
+- ជួរ Character ក្នុងតារាងបន្ទាត់ ជា **read-only** (គ្មាន dropdown)
+- ក្រោយ reload វីដេអូ → ទាញការចាត់សំឡេងពី SQLite ដោយស្វ័យប្រវត្តិ
+
+### ៧. Acceptance Tests
+```
+$ python tests/test_dubbing.py     # Test 1–10 (server ពិត · ffmpeg ពិត · KH_TTS_STUB=1)
+$ python tests/test_characters.py  # A–J + voicebook
+```
+- T1–T4៖ ចាស់ស្រី/ចាស់ប្រុស/ស្រីពេញវ័យ/ប្រុសពេញវ័យ — ឆ្លងឆាក ១ · ២ · ៣ → voice ដដែល
+- T5–T7៖ ឆាកចម្រុះត្រូវតាម segment · ឆាកប្រុសតែម្នាក់គ្មានសំឡេងស្រី · ឆាកស្រីតែម្នាក់គ្មានសំឡេងប្រុស
+- T8៖ generate ឡើងវិញ → voice ដដែល · T9៖ restart backend → រក្សាដដែល
+- T10៖ export ពិត + `{video}.voices.json` → `voice_used == voice_expected`
 
 ```
-$ python tests/test_characters.py
-A ✓ adult male      B ✓ adult female    C ✓ elderly man     D ✓ elderly woman
-E ✓ child           F ✓ male-only scene G ✓ mixed scene     H ✓ same voice
-I ✓ 2 males distinct J ✓ unknown → no invented gender
+14 passed, 0 failed — ALL DUBBING PIPELINE TESTS PASSED ✅
 15 passed, 0 failed — ALL ACCEPTANCE TESTS PASSED ✅
 ```
+
+### ៨. ដែនកំណត់ដែលត្រូវដឹង
+- edge-tts មានសំឡេងខ្មែរ **តែ ២** (Piseth/Sreymom) → ចាស់/ក្មេង/តួប្រុស ២ នាក់
+  បង្កើតដោយ `rate` + `pitch` + `volume` (ភេទត្រូវគ្នាជានិច្ច)
+- ដើម្បីបានសំឡេងចាស់/ក្មេងពិត → កំណត់ Azure / Google / ElevenLabs ក្នុង Settings
+- ការវិភាគ F0 ត្រូវអត្ថបទមានពេលវេលា (subtitle timestamps) — បើសំឡេងស្ងាត់ → `unknown`
 
 ## ⚡ Export លឿន (v1.0.14)
 

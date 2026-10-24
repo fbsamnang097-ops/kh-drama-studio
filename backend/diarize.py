@@ -186,7 +186,20 @@ def analyze_segments(video, segments, sr=SR, progress=None):
         if progress:
             progress(step / max(1, len(segments)))
     _cluster(out)
-    return {"segments": out, "speakers": len({s.get("cluster") for s in out if s.get("cluster") is not None})}
+    # ឆាក (scene) — សម្រាប់ភ្ជាប់តួអង្គឆ្លងឆាក និងរាយការណ៍
+    scenes = []
+    try:
+        from . import scenes as S
+        scenes = S.detect(video, segments)
+        for f, sc in zip(out, S.assign(segments, scenes)):
+            f["scene"] = sc
+    except Exception as e:
+        print("scene analysis failed:", e, flush=True)
+        for f in out:
+            f["scene"] = 1
+    return {"segments": out,
+            "speakers": len({s.get("cluster") for s in out if s.get("cluster") is not None}),
+            "scenes": [{"index": i + 1, "start": a, "end": b} for i, (a, b) in enumerate(scenes)]}
 
 
 # ---------- បែងចែកអ្នកនិយាយ (clustering) ----------
@@ -212,40 +225,99 @@ def voice_class(f):
     return ("unknown", "unknown", 0.0)
 
 
-def _cluster(items, rel=0.13):
-    """បែងចែក segment ជា speaker តាម F0 + clarity (គ្មាន random)"""
+def _feat(x):
+    """លក្ខណៈសម្រាប់បែងចែកអ្នកនិយាយ (normalized)"""
+    f0 = x.get("f0") or 0.0
+    z = x.get("zcr") or 0.0
+    return (math.log(max(1.0, f0)), z)
+
+
+def _dist(a, b):
+    # F0 ជា log scale (សំឡេងតន្ត្រី) · brightness ជា linear
+    return abs(a[0] - b[0]) / 0.15 + abs(a[1] - b[1]) / 0.06
+
+
+def _kmeans(pts, k, iters=30):
+    """k-means គ្មាន random — ចាប់ផ្តើមពី quantile នៃ F0 (រក្សាលំដាប់ដើម)"""
+    n = len(pts)
+    if k <= 1 or n <= k:
+        return [0] * n
+    order = sorted(range(n), key=lambda i: pts[i])
+    cents = [list(pts[order[min(n - 1, int(round((i + 0.5) * n / k)))]]) for i in range(k)]
+    labels = [0] * n
+    for _ in range(iters):
+        changed = False
+        for i, p in enumerate(pts):
+            d = [_dist(p, c) for c in cents]
+            lab = d.index(min(d))
+            if labels[i] != lab:
+                labels[i] = lab
+                changed = True
+        for ci in range(k):
+            mem = [pts[i] for i in range(n) if labels[i] == ci]
+            if mem:
+                cents[ci] = [sum(m[j] for m in mem) / len(mem) for j in range(2)]
+        if not changed:
+            break
+    return labels
+
+
+def _silhouette(pts, labels):
+    ks = set(labels)
+    if len(ks) < 2:
+        return 0.0
+    total = 0.0
+    for i, p in enumerate(pts):
+        own = [pts[j] for j in range(len(pts)) if labels[j] == labels[i] and j != i]
+        if not own:
+            continue
+        a = sum(_dist(p, q) for q in own) / len(own)
+        b = min((sum(_dist(p, q) for j, q in enumerate(pts) if labels[j] == k) /
+                 max(1, sum(1 for j in range(len(pts)) if labels[j] == k))) for k in ks if k != labels[i])
+        total += (b - a) / max(a, b) if max(a, b) else 0
+    return total / len(pts)
+
+
+def _cluster(items):
+    """បែងចែក segment ជា speaker — k-means + silhouette (គ្មាន random)
+
+    សំខាន់៖ clustering នេះជា **global** (គ្រប់ឆាក) ដូច្នេះតួអង្គដដែល
+    ដែលនិយាយនៅឆាក ១ · ៥ · ១២ នឹងធ្លាក់ក្នុង cluster តែមួយ។
+    """
     voiced = [x for x in items if (x.get("f0") or 0) > 0 and (x.get("voiced") or 0) >= 0.12]
     for x in items:
         x["cluster"] = None
     if not voiced:
         return
-    # seed: តម្រៀបតាម F0 រួចបំបែកនៅចន្លោះ > rel
-    voiced.sort(key=lambda x: x["f0"])
-    groups = [[voiced[0]]]
-    for x in voiced[1:]:
-        if x["f0"] > groups[-1][-1]["f0"] * (1 + rel):
-            groups.append([x])
-        else:
-            groups[-1].append(x)
-    # merge groups ដែល F0 ជិតគ្នា (បើមាន seed តូច)
-    for gi, g in enumerate(groups):
-        mean = sum(x["f0"] for x in g) / len(g)
-        for x in g:
-            x["cluster"] = gi
-        g_mean = mean
-        groups[gi] = g
-    # ចាត់ segment ដែលគ្មាន F0 ទៅ cluster ជិតបំផុត (បើមានបន្ទាត់ជុំវិញ)
-    means = {i: sum(x["f0"] for x in g) / len(g) for i, g in enumerate(groups)}
+    pts = [_feat(x) for x in voiced]
+    best_k, best_s, best_lab = 1, 0.42, [0] * len(pts)   # k=1 គឺជាតម្លៃលំនាំដើម
+    # សំដីខ្លី → អនុញ្ញាត k ដល់ n (១ បន្ទាត់/អ្នក) · សំដីវែង → k ≤ n/2
+    kmax = min(8, len(pts)) if len(pts) <= 6 else min(8, len(pts) // 2)
+    # សំដីខ្លីៗ (តិចជាង ៦ បន្ទាត់) → អនុញ្ញាត cluster ១ បន្ទាត់ (ប្រុស ២ នាក់ និយាយតិច)
+    min_size = 1 if len(pts) <= 6 else 2
+    for k in range(2, kmax + 1):
+        lab = _kmeans(pts, k)
+        if min(lab.count(c) for c in set(lab)) < min_size:
+            continue
+        sc = _silhouette(pts, lab)
+        if sc > best_s + 0.02:         # ត្រូវការការកើនយ៉ាងច្បាស់
+            best_k, best_s, best_lab = k, sc, lab
+    for x, lab in zip(voiced, best_lab):
+        x["cluster"] = int(lab)
+
+    # segment ដែលគ្មាន F0 → តាមអ្នកនិយាយជិតបំផុត (មុន/ក្រោយ)
     for idx, x in enumerate(items):
         if x.get("cluster") is None:
             prev = next((items[j] for j in range(idx - 1, -1, -1) if items[j].get("cluster") is not None), None)
             nxt = next((items[j] for j in range(idx + 1, len(items)) if items[j].get("cluster") is not None), None)
             x["cluster"] = (prev or nxt or {}).get("cluster")
-    # speaker-level summary
-    for gi in means:
-        mem = [x for x in items if x.get("cluster") == gi]
-        f0s = [x["f0"] for x in mem if x.get("f0")]
+
+    # សង្ខេបកម្រិត speaker
+    for cl in {x["cluster"] for x in items if x.get("cluster") is not None}:
+        mem = [x for x in items if x.get("cluster") == cl]
+        f0s = sorted(x["f0"] for x in mem if x.get("f0"))
+        zs = sorted(x.get("zcr") or 0 for x in mem)
         if f0s:
-            f0s.sort()
             for x in mem:
                 x["speaker_f0"] = round(f0s[len(f0s) // 2], 1)
+                x["speaker_zcr"] = round(zs[len(zs) // 2], 3)

@@ -88,6 +88,23 @@ export default function App() {
   const [showCast, setShowCast] = useState(false);
   useEffect(() => { try { localStorage.setItem("khAutoCast", autoDetect ? "1" : "0"); } catch {} }, [autoDetect]);
   useEffect(() => { if (!showCast) return; api("/api/characters").then(setVoiceCat).catch(() => {}); }, [showCast]);
+  // ផ្ទុកការចាត់សំឡេងចាស់ពី SQLite (ក្រោយ reload app ឬ restart backend — Test 9)
+  useEffect(() => {
+    if (!video?.id) return;
+    api(`/api/project/${video.id}`).then((st) => {
+      const cs = st.characters || [];
+      if (!cs.length) return;
+      setCast(cs);
+      const bySeg = new Map((st.segments || []).map((x) => [x.idx, x]));
+      setSegs((cur) => cur.map((x, i) => {
+        const row = bySeg.get(i);
+        const c = row && cs.find((cc) => cc.id === row.cid);
+        return c ? { ...x, char_id: c.id, char: c.role || x.char } : x;
+      }));
+      setVoiceCat((v) => ({ ...v, provider: st.provider || v.provider,
+        limitations: (st.provider?.limitations?.length ? st.provider.limitations : v.limitations) }));
+    }).catch(() => {});
+  }, [video?.id]);
   const [showSet, setShowSet] = useState(false);
   const [exported, setExported] = useState(false);
   const [showSub, setShowSub] = useState(true);       // បង្ហាញ/បិទ អក្សរលើវីដេអូ (និង Export)
@@ -132,7 +149,7 @@ export default function App() {
       if (autoDetect && r.length) {
         setBusy("កំពុងវិភាគតួអង្គ (សំឡេង)...");
         await api("/api/characters/detect", {
-          id: v.id, use_audio: true,
+          id: v.id, project: v.id, use_audio: true,
           segments: r.map((x) => ({ start: x.start, end: x.end, zh: x.zh })),
         }).then((d) => {
           setCast(d.characters || []);
@@ -197,7 +214,7 @@ export default function App() {
     if (!video?.id) throw new Error("សូម Upload វីដេអូជាមុន");
     if (!segs.length) throw new Error("សូម Transcribe ជាមុនសិន");
     const r = await api("/api/characters/detect", {
-      id: video.id,
+      id: video.id, project: video.id,
       segments: segs.map((x) => ({ start: x.start, end: x.end, zh: x.zh })),
       use_audio: true,
     });
@@ -208,14 +225,15 @@ export default function App() {
       char: r.items[i]?.char ?? x.char,
       conf: r.items[i]?.conf ?? x.conf,
     })));
-    setCastMsg(`🎭 ${r.summary}${r.audio?.speakers ? ` · ${r.audio.speakers} សំឡេងខុសគ្នា` : ""}`);
-    setVoiceCat((v) => ({ ...v, limitations: r.limitations || v.limitations }));
+    setCastMsg(`🎭 ${r.summary}${r.audio?.speakers ? ` · ${r.audio.speakers} សំឡេងខុសគ្នា` : ""}`
+      + `${r.scenes?.length ? ` · ${r.scenes.length} ឆាក` : ""}`);
+    setVoiceCat((v) => ({ ...v, limitations: r.limitations || v.limitations, provider: r.provider || v.provider }));
     return r;
   };
   const detectChars = runWith("កំពុងវិភាគតួអង្គ (សំឡេង)...", detectCore);
   const assignVoice = async (cid, vid) => {
     try {
-      const r = await api("/api/characters/assign", { id: video.id, overrides: { [cid]: vid } });
+      const r = await api("/api/characters/assign", { id: video.id, project: video.id, overrides: { [cid]: vid } });
       setCast(r.characters || []);
     } catch (e) { alert(e.message); }
   };
@@ -224,7 +242,7 @@ export default function App() {
     await new Audio(r.url).play().catch(() => {});
   };
   const autoAssign = runWith("កំពុងចាត់សំឡេងស្វ័យប្រវត្តិ...", async () => {
-    await api("/api/characters/assign", { id: video.id, overrides: {}, reset: true });
+    await api("/api/characters/assign", { id: video.id, project: video.id, overrides: {}, reset: true });
     await detectCore();
   });
 
@@ -243,11 +261,12 @@ export default function App() {
   });
   const genAudio = run("កំពុងបង្កើតសំឡេង...", async () => {
     let failed = 0;
-    for (const s of segs) {
+    for (let i = 0; i < segs.length; i++) {
+      const s = segs[i];
       if (!s.km) continue; patch(s.id, { status: "Generating" });
       let ok = false;
       for (let t = 0; t < 3 && !ok; t++) {
-        try { const r = await api("/api/tts", { text: s.km, char: voiceOf(s.char), char_id: s.char_id || "", video: video?.id || "", speed: 0 }); patch(s.id, { audio: r.url, status: "Done" }); ok = true; }
+        try { const r = await api("/api/tts", { text: s.km, char: voiceOf(s.char), char_id: s.char_id || "", video: video?.id || "", idx: i, speed: 0 }); patch(s.id, { audio: r.url, status: "Done" }); ok = true; }
         catch (e) { console.error("TTS failed:", s.km, e); await new Promise((res) => setTimeout(res, 1000 * (t + 1))); }
       }
       if (!ok) { patch(s.id, { status: "Error" }); failed++; }

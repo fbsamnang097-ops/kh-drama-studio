@@ -1,4 +1,4 @@
-import subprocess, uuid, pathlib, zipfile, sys, shutil
+import subprocess, uuid, pathlib, zipfile, sys, shutil, json
 from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -9,12 +9,18 @@ from . import cast as C
 from . import diarize as D
 from . import identity as ID
 from . import voices as V
+from . import registry as RG
 from . import encode as E
 from . import progress as PR
 
-from .paths import ROOT, STORE   # exe: STORE ក្នុង folder អ្នកប្រើ
+from .paths import ROOT, STORE, DATA   # exe: STORE ក្នុង folder អ្នកប្រើ
 
 app = FastAPI(title="KH Drama Studio AI")
+
+
+def reg():
+    """SQLite registry (តួអង្គ + សំឡេង ថេរ ឆ្លង restart)"""
+    return RG.connect(DATA)
 
 def ff(*a):
     r = subprocess.run(["ffmpeg", "-y", "-hide_banner", "-nostats", "-loglevel", "error", *a], capture_output=True, text=True, cwd=STORE)   # cwd=storage → ឈ្មោះ file សាមញ្ញ
@@ -88,13 +94,16 @@ class DetectIn(BaseModel):
     segments: list[dict] = []      # [{start,end,zh}]
     use_audio: bool = True
     voicebook: bool = True
+    project: str = ""              # គម្រោង (លំនាំដើម = id)
+    reassign: bool = False         # ចាត់សំឡេងឡើងវិញទាំងអស់
 
 
 @app.post("/api/characters/detect")
 def characters_detect(b: DetectIn):
-    """វិភាគតួអង្គពី សំឡេង + អត្ថបទ (diarization) — តួអង្គថេរពេញរឿង"""
+    """វិភាគតួអង្គពី សំឡេង + អត្ថបទ → ID ថេរ + សំឡេងថេរ (រក្សាក្នុង SQLite)"""
     def run():
         segs = [s for s in b.segments if isinstance(s, dict)]
+        pid = b.project or b.id
         audio = None
         video = STORE / f"{b.id}.mp4"
         if b.use_audio and video.exists() and segs:
@@ -103,16 +112,22 @@ def characters_detect(b: DetectIn):
             except Exception as e:
                 print("diarization failed:", e, flush=True)
                 audio = None
-        prev = ID.load_cast(STORE, b.id) or {}
-        book = ID.load_voicebook(STORE) if b.voicebook else {}
-        res = ID.resolve(segs, audio, video_id=b.id, voicebook=book,
-                         previous=prev.get("characters"))
-        # ការជ្រើសដោយដៃរបស់អ្នកប្រើ ឈ្នះស្វ័យប្រវត្តិ
-        ID.apply_overrides(res, (prev or {}).get("overrides") or {})
-        if b.voicebook:
-            ID.bind_voicebook(STORE, res["characters"])
-        ID.save_cast(STORE, b.id, {**res, "overrides": (prev or {}).get("overrides") or {}})
-        return res
+        con = reg()
+        try:
+            prev = RG.project_state(con, pid)
+            book = ID.load_voicebook(STORE) if b.voicebook else {}
+            sup = P.voice_support_report()
+            res = ID.resolve(segs, audio, video_id=b.id, voicebook=book,
+                             previous=prev.get("characters"), con=con, pid=pid,
+                             provider=sup["provider"], reassign=bool(b.reassign))
+            if b.voicebook:
+                ID.bind_voicebook(STORE, res["characters"])
+            res["provider"] = sup
+            res["limitations"] = list(dict.fromkeys(res.get("limitations", []) + sup["limitations"]))
+            RG.ensure_project(con, pid, b.id)
+            return res
+        finally:
+            con.close()
     return guard(run)
 
 
@@ -120,31 +135,73 @@ class AssignIn(BaseModel):
     id: str
     overrides: dict = {}           # {char_id: voice_id}
     reset: bool = False
+    project: str = ""
 
 
 @app.post("/api/characters/assign")
 def characters_assign(b: AssignIn):
-    """ជ្រើសសំឡេងដោយដៃ → រក្សាទុកជារៀងរហូត (រហូតដល់ reset)"""
+    """ជ្រើសសំឡេងដោយដៃ → រក្សាក្នុង registry ជារៀងរហូត (រហូតដល់ reset)"""
     def run():
-        data = ID.load_cast(STORE, b.id) or {"characters": [], "items": []}
-        ov = {} if b.reset else {**(data.get("overrides") or {}), **b.overrides}
-        (data.setdefault("characters", []))
-        for c in data["characters"]:
+        pid = b.project or b.id
+        con = reg()
+        try:
             if b.reset:
-                c["manual"] = False
-            v = ov.get(c["id"])
-            if v and v in V.VOICES:
-                c["voice"], c["manual"], c["source"] = v, True, "manual"
-        data["overrides"] = ov
-        ID.save_cast(STORE, b.id, data)
-        # ភ្ជាប់ឈ្មោះ → សំឡេង សម្រាប់ភាគក្រោយ
-        book = ID.load_voicebook(STORE)
-        for c in data["characters"]:
-            if c.get("manual") and c.get("name") and c.get("named", True):
-                book[c["name"]] = c["voice"]
-        ID.save_voicebook(STORE, book)
-        return {"ok": True, "characters": data["characters"], "overrides": ov}
+                RG.reset_manual(con, pid)
+            for cid, vid in (b.overrides or {}).items():
+                if vid not in V.VOICES:
+                    raise HTTPException(400, f"សំឡេងមិនស្គាល់: {vid}")
+                RG.set_voice(con, cid, vid, provider=P.voice_support_report()["provider"], manual=True)
+            # voice book: ឈ្មោះ → សំឡេង (ឆ្លងភាគ)
+            book = ID.load_voicebook(STORE)
+            if b.reset:
+                chars = RG.characters(con, pid)
+                for c in chars:
+                    if c.get("named") and c.get("name"):
+                        book.pop(c["name"], None)
+            else:
+                for c in RG.characters(con, pid):
+                    if c.get("assignment") == "manual" and c.get("named") and c.get("name"):
+                        book[c["name"]] = c["voice"]
+            ID.save_voicebook(STORE, book)
+            # ធ្វើបច្ចុប្បន្នភាព segment តាមសំឡេងថ្មី
+            chars = {c["id"]: c for c in RG.characters(con, pid)}
+            rows = [{"idx": s["idx"], "cid": s["cid"], "voice_id": (chars.get(s["cid"]) or {}).get("voice"),
+                     "start": s["start"], "end": s["end"], "zh": s["zh"]}
+                    for s in RG.segments(con, pid)]
+            if rows:
+                RG.save_segments(con, pid, rows)
+            return {"ok": True, "characters": RG.characters(con, pid),
+                    "overrides": {c["id"]: c["voice"] for c in RG.characters(con, pid)
+                                  if c.get("assignment") == "manual"}}
+        finally:
+            con.close()
     return guard(run)
+
+
+@app.get("/api/project/{pid}")
+def project_state(pid: str):
+    """ផ្ទុកគម្រោងឡើងវិញ (ក្រោយ restart / reload) — Test 9"""
+    con = reg()
+    try:
+        st = RG.project_state(con, pid)
+        st["provider"] = P.voice_support_report()
+        return st
+    finally:
+        con.close()
+
+
+@app.get("/api/export_manifest")
+def export_manifest(id: str):
+    """manifest៖ សំឡេងដែលប្រើក្នុង export ត្រូវនឹងសំឡេងតួអង្គឬទេ"""
+    con = reg()
+    try:
+        man = RG.export_manifest(con, id)
+        p = STORE / f"{id}.voices.json"
+        if p.exists():
+            man["export"] = (json.loads(p.read_text()) or {}).get("export")
+        return man
+    finally:
+        con.close()
 
 
 class PreviewIn(BaseModel):
@@ -173,15 +230,27 @@ def translate(b: Tr): return guard(lambda: P.translate(b.lines, P.load()))
 class Sp(BaseModel):
     text: str
     char: str = ""          # role code ឬ voice id
-    char_id: str = ""       # character id (ត្រូវការ video)
-    video: str = ""         # video id (សម្រាប់រក cast)
+    char_id: str = ""       # character id (registry)
+    video: str = ""         # video/project id
+    idx: int = -1           # segment index (សម្រាប់ manifest)
     gender: str = "male"    # តម្លៃចាស់ (backward compat)
     speed: float = 0.0
 
 
 def _voice_for(b):
-    """char_id → voice ពី cast ដែលរក្សាទុក · បើគ្មាន → char/voice id"""
+    """char_id → voice ពី registry (SQLite) — បើគ្មាន → cast json → char/voice id"""
     if b.video and b.char_id:
+        pid = b.video
+        try:
+            con = reg()
+            try:
+                for c in RG.characters(con, pid):
+                    if c.get("id") == b.char_id and c.get("voice"):
+                        return c["voice"]
+            finally:
+                con.close()
+        except Exception as e:
+            print("registry lookup failed:", e, flush=True)
         data = ID.load_cast(STORE, b.video) or {}
         for c in data.get("characters", []):
             if c.get("id") == b.char_id:
@@ -191,12 +260,37 @@ def _voice_for(b):
 
 @app.post("/api/tts")
 def tts(b: Sp):
+    """បង្កើតសំឡេងខ្មែរ **តាមតួអង្គដែលបានរក្សាទុក** (Test 8: regenerate → voice ដដែល)"""
     def run():
         name = f"{uuid.uuid4().hex[:10]}.mp3"
         voice = _voice_for(b)
         (STORE / name).write_bytes(P.tts(b.text, voice, b.speed, P.load()))
-        return {"url": f"/files/{name}", "char": P.voice_profile(voice)[1], "voice": voice}
+        # កត់ត្រា៖ segment នេះប្រើសំឡេងអ្វី (សម្រាប់ manifest + Test 10)
+        if b.video and b.idx >= 0:
+            try:
+                con = reg()
+                try:
+                    RG.set_segment_voice(con, b.video, b.idx, b.char_id or None, voice, f"/files/{name}")
+                finally:
+                    con.close()
+            except Exception as e:
+                print("record segment voice failed:", e, flush=True)
+        return {"url": f"/files/{name}", "char": P.voice_profile(voice)[1], "voice": voice,
+                "char_id": b.char_id or None, "idx": b.idx}
     return guard(run)
+
+
+@app.get("/api/voices")
+def voices_info(refresh: bool = False):
+    """សំឡេងពិតរបស់ provider + ដែនកំណត់ (មិនប្រឌិត voice id)"""
+    return P.voice_support_report(P.load()) if not refresh else P.voice_support_report(
+        {**P.load(), "_refresh": True})
+
+
+@app.post("/api/voices/refresh")
+def voices_refresh():
+    return P.voice_support_report(P.load())
+
 
 def _q(q, quality, src):
     q = dict(q)
@@ -245,6 +339,27 @@ def export(b: Ex):
     srt.write_text("\n".join(f"{i+1}\n{t(s['start'])} --> {t(s['end'])}\n{s['km']}\n" for i, s in enumerate(b.segments)), encoding="utf-8")
     clips = [s for s in b.segments if s.get("audio")]
     if not clips: raise HTTPException(400, "សូមចុច Generate Khmer Audio ជាមុន")
+    # កត់ត្រា manifest៖ បន្ទាត់ → តួអង្គ → សំឡេង ដែលបានបង្កើតពិត (Test 10)
+    try:
+        con = reg()
+        try:
+            rows = []
+            for i, sg in enumerate(b.segments):
+                if not sg.get("audio"):
+                    continue
+                rows.append({"idx": i, "cid": sg.get("char_id"), "voice_id": sg.get("voice"),
+                             "start": sg.get("start"), "end": sg.get("end"),
+                             "zh": sg.get("zh"), "km": sg.get("km"), "audio": sg.get("audio")})
+            if rows:
+                RG.ensure_project(con, vid, vid)
+                RG.save_segments(con, vid, rows)
+            man = RG.export_manifest(con, vid)
+            man["export"] = out.name
+            (STORE / f"{vid}.voices.json").write_text(RG.dumps(man))
+        finally:
+            con.close()
+    except Exception as e:
+        print("manifest failed:", e, flush=True)
     track = SB.write_track(STORE, vid, b.segments, b.blank) if (b.subs and b.blank) else None
     q = P.TIERS[P.tier(P.load())]["export"]   # Standard = លឿន, Premium = គុណភាពខ្ពស់
     if b.speed == "fast": q = _fast(q)

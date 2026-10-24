@@ -32,3 +32,6 @@ demucs_out/
 /bin/
 /dist-backend/
 /release/
+*.db
+*.db-journal
+*.db-wal
