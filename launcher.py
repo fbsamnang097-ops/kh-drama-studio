@@ -1,6 +1,14 @@
 """Launcher សម្រាប់ exe/app: ត្រៀម ffmpeg ក្នុង bundle, បើក server, បើក browser"""
 import os, sys, socket, threading, webbrowser, pathlib, subprocess, multiprocessing
 
+# SSL: certificates for downloads (Demucs model, TTS, APIs) inside the packaged app
+try:
+    import certifi
+    os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+    os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
+except Exception:
+    pass
+
 FROZEN = bool(getattr(sys, "frozen", False))
 
 for _s in (sys.stdout, sys.stderr):
