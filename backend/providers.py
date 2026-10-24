@@ -31,23 +31,31 @@ CATALOG = {
     "custom": {"key": True, "model": "tts-1", "male": "onyx", "female": "nova", "base": True}},
 }
 # ---------- តួអង្គ → សំឡេង (ឥតគិតថ្លៃ ជាមួយ edge-tts) ----------
-# (voice gender, rate, pitch) — edge-tts គាំទ្រ rate និង pitch ដោយផ្ទាល់
-# សំឡេងខ្មែរមានតែ ២ (Piseth ប្រុស · Sreymom ស្រី) ដូច្នេះយើងបង្កើតមនុស្សចាស់/ក្មេង
-# ដោយបន្ថយ/បង្កើន ល្បឿន (rate) និង សំឡេង (pitch) ឱ្យខុសគ្នាច្បាស់
+# (gender, rate, pitch, volume) — edge-tts គាំទ្រ rate · pitch · volume ដោយផ្ទាល់
+# សំឡេងខ្មែរមានតែ ២ (Piseth ប្រុស · Sreymom ស្រី) → បង្កើត ចាស់/ក្មេង
+# ដោយលៃតម្រូវ ល្បឿន · សំឡេង · កម្រិតសំឡេង ឱ្យឮខុសគ្នាច្បាស់តែធម្មជាតិ
 CHAR_VOICES = {
-    "男主":   ("male",   "+0%",  "+0Hz"),    # 👨 ប្រុស
-    "女主":   ("female", "+0%",  "+0Hz"),    # 👩 ស្រី
-    "老男":   ("male",   "-15%", "-30Hz"),   # 👴 ចាស់ប្រុស (យឺត · ធ្ងន់)
-    "老女":   ("female", "-15%", "-25Hz"),   # 👵 ចាស់ស្រី
-    "小孩":   ("female", "+12%", "+40Hz"),   # 🧒 ក្មេង
-    "小孩男": ("male",   "+12%", "+35Hz"),   # 👦 ក្មេងប្រុស
-    "旁白":   ("male",   "-6%",  "-10Hz"),   # 📖 អ្នកនិទាន (ស្ងប់)
+    "男主":   ("male",   "+0%",  "+0Hz",  "+0%"),    # 👨 ប្រុស — ធម្មតា
+    "女主":   ("female", "+0%",  "+0Hz",  "+0%"),    # 👩 ស្រី — ធម្មតា
+    "老男":   ("male",   "-16%", "-22Hz", "-6%"),    # 👴 ចាស់ប្រុស — យឺត · ធ្ងន់ · ស្រាល
+    "老女":   ("female", "-15%", "-18Hz", "-6%"),    # 👵 ចាស់ស្រី
+    "小孩":   ("female", "+8%",  "+34Hz", "+4%"),    # 🧒 ក្មេងស្រី — លឿន · ខ្ពស់
+    "小孩男": ("male",   "+10%", "+42Hz", "+4%"),    # 👦 ក្មេងប្រុស
+    "旁白":   ("male",   "-7%",  "-8Hz",  "-2%"),    # 📖 អ្នកនិទាន — ស្ងប់ · ច្បាស់
 }
 CHAR_DEFAULT = "旁白"
 
+# ពាក្យសម្រាប់ UI
+VOICE_LABEL = {
+    "男主": "ប្រុស · Piseth", "女主": "ស្រី · Sreymom",
+    "老男": "ចាស់ប្រុស · Piseth ↓", "老女": "ចាស់ស្រី · Sreymom ↓",
+    "小孩": "ក្មេងស្រី · Sreymom ↑", "小孩男": "ក្មេងប្រុស · Piseth ↑",
+    "旁白": "អ្នកនិទាន · Piseth",
+}
+
 
 def char_profile(char):
-    """តួអង្គ → (gender, rate%, pitchHz) ជាមួយ normalize"""
+    """តួអង្គ → ((gender, rate, pitch, volume), char) ជាមួយ normalize"""
     try:
         from .cast import normalize as _norm
     except ImportError:
@@ -56,14 +64,55 @@ def char_profile(char):
     return CHAR_VOICES.get(c, CHAR_VOICES[CHAR_DEFAULT]), c
 
 
+def _num(v):
+    try:
+        return int(float(str(v).strip().rstrip("%").rstrip("Hz").replace("+", "")))
+    except ValueError:
+        return 0
+
+
 def _add_rate(base, extra):
     """'+0%' + speed → '+10%'"""
-    def num(v):
-        try:
-            return int(str(v).strip().rstrip("%").replace("+", ""))
-        except ValueError:
-            return 0
-    return f"{num(base) + int(round(extra * 100)):+d}%"
+    return f"{_num(base) + int(round(extra * 100)):+d}%"
+
+
+def _shift(val, delta, unit):
+    return f"{_num(val) + delta:+d}{unit}"
+
+
+def natural_text(text):
+    """សម្អាតអត្ថបទខ្មែរ ឱ្យ TTS អានធម្មជាតិ (ចន្លោះ · សញ្ញា · ចុងប្រយោគ)"""
+    t = " ".join(str(text or "").split())
+    for a, b in (("，", ", "), ("、", ", "), ("。", "។ "), ("；", "; "), ("：", ": "),
+                 ("！", "!"), ("？", "?"), ("「", ""), ("」", ""), ("『", ""), ("』", ""),
+                 ("“", ""), ("”", ""), ("……", "…"), ("--", "…")):
+        t = t.replace(a, b)
+    t = " ".join(t.split())
+    t = t.replace(" ,", ",").replace(" .", ".").replace("… ", "… ")
+    if t and t[-1] not in ".!?។…":
+        t += "។"
+    return t
+
+
+def prosody(text, rate, pitch, volume, seed=0):
+    """លៃតម្រូវតាមអត្ថន័យបន្ទាត់ → ស្តាប់ធម្មជាតិ (មិនមែនម៉ាស៊ីន)"""
+    t = str(text or "")
+    r, p_, v = _num(rate), _num(pitch), _num(volume)
+    if t.rstrip().endswith(("!", "！")):
+        r, p_ = r + 3, p_ + 5            # រំភើប / ស្រែក
+    elif t.rstrip().endswith(("?", "？")):
+        r, p_ = r - 2, p_ + 7            # សំណួរ → សំឡេងងើប
+    if "…" in t or "......" in t:
+        r -= 5                            # ផ្អាក / អក្សរស្ទាក់
+    n = len(t)
+    if n <= 6:
+        r += 2                            # បន្ទាត់ខ្លី → មិនរត់
+    elif n > 40:
+        r -= 2                            # បន្ទាត់វែង → មិនញាប់
+    r += (seed % 5) - 2                   # ±2% ប្រែប្រួលតិចៗ (កុំឱ្យរាបស្មើ)
+    r = max(-45, min(45, r))
+    p_ = max(-45, min(45, p_))
+    return f"{r:+d}%", f"{p_:+d}Hz", f"{v:+d}%"
 
 
 BASES = {"codecraft": "https://codecraftapi.com/v1", "openai": "https://api.openai.com/v1", "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
@@ -225,16 +274,18 @@ def translate(lines, cfg):
 def tts(text, char, speed, cfg):
     """char = តួអង្គ (男主/女主/老男/老女/小孩/小孩男/旁白) ឬ 'male'/'female' ចាស់"""
     p = prov(cfg, "tts"); c = CATALOG["tts"][p]
-    (gender, rate, pitch), _char = char_profile(char)
+    (gender, rate, pitch, volume), _char = char_profile(char)
     voice = _g(cfg, f"tts_{gender}_{p}", c[gender])
+    text = natural_text(text)          # សម្អាតអត្ថបទគ្រប់ provider
     if p == "edge":   # ឥតគិតថ្លៃ គ្មាន Key
         import edge_tts
+        rate, pitch, volume = prosody(text, _add_rate(rate, speed), pitch, volume,
+                                      seed=sum(map(ord, text[:24])))
         async def go():
             out = bytearray()
-            async for ch in edge_tts.Communicate(text, voice, rate=_add_rate(rate, speed), pitch=pitch).stream():
+            async for ch in edge_tts.Communicate(text, voice, rate=rate, pitch=pitch, volume=volume).stream():
                 if ch["type"] == "audio": out += ch["data"]
             return bytes(out)
-        text = " ".join((text or "").split())
         last = None
         for attempt in range(3):
             try:
