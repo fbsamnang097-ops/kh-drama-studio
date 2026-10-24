@@ -42,14 +42,14 @@ TIERS = {
     "translate": {"provider": "google_free"},
     "stt": {"provider": "local", "model": "tiny"},
     "tts": {"provider": "edge"},
-    "export": {"preset": "medium", "crf": 17, "abr": "192k"},
+    "export": {"preset": "veryfast", "crf": 20, "abr": "192k"},
     "context": 0,    # ចំនួនបន្ទាត់មុនៗ ដែលផ្ញើជាបរិបទពេលបកប្រែ
   },
   "premium": {
     "translate": {"provider": "anthropic", "model": "claude-opus-5-5"},
     "stt": {"provider": "openai", "model": "whisper-1"},
     "tts": {"provider": "azure"},
-    "export": {"preset": "slow", "crf": 18, "abr": "192k"},
+    "export": {"preset": "medium", "crf": 19, "abr": "192k"},
     "context": 6,
   },
 }

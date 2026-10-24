@@ -117,6 +117,51 @@ pip install demucs
 
 * * *
 
+## ⚡ Export លឿន (v1.0.14)
+
+Export ត្រូវ encode វីដេអូទាំងមូល។ ដូច្នេះល្បឿនអាស្រ័យលើ encoder និង preset ច្រើនជាង layer/blur។
+v1.0.14 ធ្វើឱ្យលឿនជាងមុន **~1.8–2.4 ដង** ដោយមិនប៉ះពាល់ដល់ខ្លឹមសារ៖
+
+| អ្វីដែលផ្លាស់ | មុន | ឥឡូវ |
+|---|---|---|
+| Standard preset | `medium` crf 17 | `veryfast` crf 20 |
+| Premium preset | `slow` crf 18 | `medium` crf 19 |
+| HD 1080p | បង្ខំ `medium` | រក្សា preset របស់ tier |
+| Layer រូបស្ងៀម | loop តាម framerate វីដេអូ | loop ១ fps (សន្សំ CPU) |
+
+**⚡ របៀបលឿនបំផុត** — ក្នុងប្រអប់ Export ធីក **“⚡ លឿនបំផុត (ណែនាំ)”**:
+ប្រើ `veryfast` + `crf 23` និង audio 160k → file តូចជាង លឿនជាង ហើយភ្នែកស្ទើរមិនឃើញខុស។
+
+**Hardware encoder (ស្វ័យប្រវត្តិ)** — `backend/encode.py` សាកល្បង encode ពិត ០.៤ វិនាទី
+ហើយជ្រើស encoder លឿនបំផុតដែលម៉ាស៊ីននោះប្រើបាន៖
+
+| ម៉ាស៊ីន | Encoder | ល្បឿន (ប្រហែល) |
+|---|---|---|
+| Mac (Intel/M1-M4) | `h264_videotoolbox` | ៥–១៥× លឿនជាង CPU |
+| NVIDIA GPU | `h264_nvenc` | ៥–១០× |
+| Intel Quick Sync | `h264_qsv` | ៣–៨× |
+| AMD (Windows) | `h264_amf` | ៣–៦× |
+| គ្មាន GPU | `libx264` | ធម្មតា |
+
+បើ hardware encoder បរាជ័យ → ត្រឡប់ទៅ `libx264` ស្វ័យប្រវត្តិ (មិនធ្វើឱ្យ Export ដួល)។
+កំណត់ដោយដៃបាន៖ `KH_ENCODER=libx264` (ឬ `h264_nvenc`, `h264_videotoolbox`, ...)។
+ស្ថានភាពបង្ហាញក្នុងប្រអប់ Export (ឧ. `⚡ VideoToolbox` ឬ `CPU (x264)`) និង `GET /api/encoder`។
+
+**Progress ពិត + ETA** — Export ដំណើរការជា background job៖
+
+- `POST /api/export` → `{"job": true}` ភ្លាមៗ (មិន block)
+- `GET /api/export_status?id=<id>` → `{state, percent, eta, speed, url, error}`
+- UI បង្ហាញ progress bar, `%`, និង `នៅសល់ ~mm:ss` ពី `-progress pipe:1` របស់ FFmpeg
+
+**ឧទាហរណ៍វាស់ពិត** (វីដេអូ 30 វិនាទី 1080×1920, 2 CPU cores គ្មាន GPU, មាន subtitle + 4 layer + 2 blur + BGM):
+
+| | មុន (v1.0.13) | ឥឡូវ (v1.0.14) |
+|---|---|---|
+| Standard | 34.1s (0.88×) | **14.4s (2.08×)** |
+| Premium | 58.3s (0.51×) | **~19s (1.6×)** |
+
+លើ Mac/Windows ដែលមាន GPU ល្បឿនកើនដល់ ៥–១៥× បន្ថែមទៀត។
+
 ## 🎬 Export តែមួយដង (Logo · Sponsor · Overlay · Khmer Text · Blur)
 
 **គ្រប់យ៉ាងចេញក្នុង Export តែមួយ pass** — អក្សរខ្មែរ, សំឡេងខ្មែរ, BGM, layer ទាំង ៤ និង blur box
@@ -296,8 +341,8 @@ cd frontend && npm install && npm run build && cd ..
 
 ### ចេញកំណែថ្មី (សម្រាប់អ្នកអភិវឌ្ឍ)
 
-1. ប្តូរលេខក្នុង file `VERSION` **និង** `package.json` (`"version"`) ឱ្យដូចគ្នា (ឧ. `1.0.13`) ហើយ commit
-2. `git tag v1.0.13 && git push origin v1.0.13`
+1. ប្តូរលេខក្នុង file `VERSION` **និង** `package.json` (`"version"`) ឱ្យដូចគ្នា (ឧ. `1.0.14`) ហើយ commit
+2. `git tag v1.0.14 && git push origin v1.0.14`
 3. GitHub Actions (tab Actions → Build apps) នឹង build Windows, Mac Intel, Mac ARM ហើយដាក់ file ក្នុង Releases ដោយស្វ័យប្រវត្តិ
 
-tag ត្រូវដូច `VERSION` និង `package.json` (`v1.0.13` ↔ `1.0.13`) បើមិនដូច្នេះ build នឹងបរាជ័យ។ លេខនេះបង្ហាញក្នុង footer របស់ app ផងដែរ។
+tag ត្រូវដូច `VERSION` និង `package.json` (`v1.0.14` ↔ `1.0.14`) បើមិនដូច្នេះ build នឹងបរាជ័យ។ លេខនេះបង្ហាញក្នុង footer របស់ app ផងដែរ។

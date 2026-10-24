@@ -175,6 +175,10 @@ export default function App() {
   });
   const [showExp, setShowExp] = useState(false);
   const [expQ, setExpQ] = useState("hd");
+  const [expFast, setExpFast] = useState(true);      // ⚡ លឿនបំផុត (veryfast + crf ខ្ពស់បន្តិច)
+  const [expProg, setExpProg] = useState(null);      // {percent, eta, speed, state}
+  const [encInfo, setEncInfo] = useState(null);      // {encoder, hardware, label}
+  useEffect(() => { if (showExp) api("/api/encoder").then(setEncInfo).catch(() => {}); }, [showExp]);
   const saveRef = useRef(null);
   const [saveName, setSaveName] = useState("");
   const pickSave = async () => {
@@ -202,6 +206,14 @@ export default function App() {
             <input type="radio" name="expq" checked={expQ === v} onChange={() => setExpQ(v)} />
             <span><span className="block text-sm font-semibold">{t}</span><span className="block text-xs opacity-70">{d}</span></span>
           </label>))}
+        <div className="text-sm font-semibold flex items-center gap-2">ល្បឿន
+          {encInfo && <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: encInfo.hardware ? "#34d39933" : "#ffffff14", color: encInfo.hardware ? "#6ee7b7" : "#ffffff88" }}>{encInfo.label}</span>}
+        </div>
+        <label className="glass p-3 flex gap-2 items-start cursor-pointer" style={{ borderLeft: `4px solid ${expFast ? "#34d399" : "transparent"}` }}>
+          <input type="checkbox" checked={expFast} onChange={(e) => setExpFast(e.target.checked)} style={{ accentColor: "#34d399" }} />
+          <span><span className="block text-sm font-semibold">⚡ លឿនបំផុត (ណែនាំ)</span>
+            <span className="block text-xs opacity-70">ប្រើ encoder របស់ GPU បើមាន · preset លឿន · គុណភាពខុសគ្នាតិចតួច</span></span>
+        </label>
         <div className="text-sm font-semibold">បញ្ចូលក្នុង Export (pass តែមួយ)</div>
         <div className="glass p-2 text-xs space-y-0.5">
           {[
@@ -264,10 +276,41 @@ export default function App() {
     const [ly, bx] = [await layerPayload(), blurPayload()];   // Logo/Sponsor/Overlay/Text + Blur ក្នុង Export តែមួយ
     const r = await api("/api/export", {
       id: video.id, segments: segs.map((s, i) => ({ ...s, png: pngs[i] || "" })),
-      subs: showSub, blank, bgm, quality: expQ, layers: ly, boxes: bx,
+      subs: showSub, blank, bgm, quality: expQ, speed: expFast ? "fast" : "",
+      layers: ly, boxes: bx,
     });
-    setExported(true); await saveOut(r.url);
+    if (r.url) { setExported(true); return saveOut(r.url); }   // server ចាស់ → sync
+    setExpProg({ percent: 0, eta: 0, state: "running" });
+    try {
+      for (;;) {   // poll progress ពិតពី FFmpeg
+        await new Promise((ok) => setTimeout(ok, 700));
+        const j = await api(`/api/export_status?id=${encodeURIComponent(video.id)}`);
+        if (j.state === "done") { setExpProg({ percent: 100, eta: 0, state: "done" }); setExported(true); await saveOut(j.url); break; }
+        if (j.state === "error") throw new Error(j.error || "Export បរាជ័យ");
+        if (j.state === "none") throw new Error("Job បាត់ (server restart?) សូមព្យាយាមម្តងទៀត");
+        setExpProg(j);
+      }
+    } finally { setTimeout(() => setExpProg(null), 1500); }
   });
+
+  // Progress ពិត (ពី FFmpeg) — បង្ហាញ % និង ETA ជំនួសការរង់ចាំទទេ
+  const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+  const expProgUI = expProg ? createPortal(
+    <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 28, zIndex: 60, width: 360 }}
+      className="glass bg-[#1a1245]/95 p-3 rounded-xl">
+      <div className="flex items-center justify-between text-xs mb-1.5">
+        <b>{expProg.state === "done" ? "✅ Export ចប់" : "🎬 កំពុង Export…"}</b>
+        <span style={{ color: "#a7f3d0" }}>{Math.round(expProg.percent || 0)}%</span>
+      </div>
+      <div style={{ height: 8, borderRadius: 99, background: "#ffffff22", overflow: "hidden" }}>
+        <div style={{ width: `${Math.max(1.5, expProg.percent || 0)}%`, height: "100%", borderRadius: 99,
+          background: "linear-gradient(90deg,#22d3ee,#34d399)", transition: "width .4s ease" }} />
+      </div>
+      <div className="flex justify-between text-xs opacity-70 mt-1">
+        <span>{expProg.speed ? `${expProg.speed}× លឿនជាងពេលវេជ្ជមាន` : "កំពុងចាប់ផ្តើម…"}</span>
+        <span>{expProg.eta > 1 ? `នៅសល់ ~${mmss(expProg.eta)}` : ""}</span>
+      </div>
+    </div>, document.body) : null;
   const [bgmVol, setBgmVol] = useState(0.5);
   const bgmAud = useRef(null);
   useEffect(() => {   // Preview BGM តាមវីដេអូ (play / pause / seek)
@@ -380,7 +423,7 @@ export default function App() {
       {/* ៣. Timeline */}
       <section className="pnl pnl-teal col-start-2 p-3 pt-4 flex flex-col gap-2 min-h-0 min-w-0">
         <div className="flex gap-2 items-center text-sm">
-          <B c="cyan" onClick={translate}>Translate</B><B c="green" onClick={genAudio}>Generate Khmer Audio</B><B c="orange" onClick={() => setShowExp(true)}>Export Video</B>{expDialog}
+          <B c="cyan" onClick={translate}>Translate</B><B c="green" onClick={genAudio}>Generate Khmer Audio</B><B c="orange" onClick={() => setShowExp(true)}>Export Video</B>{expDialog}{expProgUI}
           <span className="ml-auto">Zoom</span><input type="range" min={5} max={80} value={zoom} onChange={(e) => setZoom(+e.target.value)} />
         </div>
         <Timeline {...{ bgm, segs, patch, dur, zoom, t, video, seek: (x) => { if (vref.current) vref.current.currentTime = x; } }} />

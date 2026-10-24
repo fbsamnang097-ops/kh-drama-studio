@@ -42,12 +42,13 @@ def _mix(n, bgm_idx, pad=False):
     flt.append("[v1][duck]amix=inputs=2:duration=first:normalize=0[aout]")
     return flt
 
-def export_args(src, clips, subs_txt, out, q, bgm=None, layers=(), boxes=(), W=0, H=0, dur=0.0):
+def export_args(src, clips, subs_txt, out, q, bgm=None, layers=(), boxes=(), W=0, H=0, dur=0.0, venc=None):
     """Export តែមួយ pass: សំឡេងខ្មែរ + BGM + Subtitle + Logo/Sponsor/Overlay/Text + Blur
 
     q["hd"] = re-encode ច្បាស់; q["tw"],q["th"] = ទំហំ upscale (ស្គាល់ស្វ័យប្រវត្តិពីប្រភព)
     layers = graph.layer_inputs(...) → [(input args, ឈ្មោះ file, layer)]
     boxes  = blur box របស់ BlurPanel;  W,H = ទំហំវីដេអូដើម (px)
+    venc   = encoder args ពី `encode.video_args()` (hardware បើមាន); None = libx264
     """
     inputs, flt = ["-i", src], []
     for i, s in enumerate(clips):
@@ -66,7 +67,7 @@ def export_args(src, clips, subs_txt, out, q, bgm=None, layers=(), boxes=(), W=0
     if subs_txt:
         inputs += ["-f", "concat", "-safe", "0", "-i", subs_txt]; subs_idx = nxt; nxt += 1
 
-    x264 = ["-c:v", "libx264", "-preset", q["preset"], "-crf", str(q["crf"]), "-pix_fmt", "yuv420p"]
+    x264 = venc or ["-c:v", "libx264", "-preset", q["preset"], "-crf", str(q["crf"]), "-pix_fmt", "yuv420p"]
     up = bool(q.get("tw") and q.get("th"))
     vfx = up or bool(layers) or subs_idx is not None or bool(boxes)
     if vfx or q.get("hd"):
