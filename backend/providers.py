@@ -30,6 +30,65 @@ CATALOG = {
     "openai": {"key": True, "model": "gpt-4o-mini-tts", "male": "onyx", "female": "nova"},
     "custom": {"key": True, "model": "tts-1", "male": "onyx", "female": "nova", "base": True}},
 }
+# ---------- ការផ្ទៀងផ្ទាត់សំឡេងពិតរបស់ provider ----------
+# មិនប្រឌិត voice id ទេ — ត្រូវផ្ទៀងផ្ទាត់ជាមួយ provider ពិត (edge-tts list_voices)
+PROVIDER_VOICE = {"male": "km-KH-PisethNeural", "female": "km-KH-SreymomNeural"}
+_VCACHE = {"data": None, "ts": 0.0}
+
+
+def provider_voices(cfg=None, refresh=False, ttl=6 * 3600):
+    """រាយសំឡេងខ្មែរពិតដែល provider គាំទ្រ → {provider, voices, verified}"""
+    cfg = cfg or load()
+    p = prov(cfg, "tts")
+    import time as _t
+    if not refresh and _VCACHE["data"] and (_t.time() - _VCACHE["ts"] < ttl):
+        return _VCACHE["data"]
+    out = {"provider": p, "voices": [], "verified": False, "source": "static"}
+    if p == "edge":
+        try:
+            import edge_tts
+
+            async def go():
+                return await edge_tts.list_voices()
+
+            allv = asyncio.run(go())
+            km = [{"id": v.get("ShortName"), "gender": (v.get("Gender") or "").lower(),
+                   "locale": v.get("Locale")} for v in allv
+                  if str(v.get("Locale", "")).startswith("km")]
+            if km:
+                out.update(voices=km, verified=True, source="edge-tts list_voices")
+                _VCACHE["data"], _VCACHE["ts"] = out, _t.time()
+                return out
+        except Exception as e:
+            out["error"] = str(e)[:160]
+    # fallback: តម្លៃដែលដឹងច្បាស់ (មិន verified — គ្មាន internet)
+    if p in ("edge", "azure"):
+        out["voices"] = [{"id": "km-KH-PisethNeural", "gender": "male", "locale": "km-KH"},
+                         {"id": "km-KH-SreymomNeural", "gender": "female", "locale": "km-KH"}]
+    elif p == "google":
+        out["voices"] = [{"id": "km-KH-Standard-A", "gender": "female", "locale": "km-KH"}]
+    _VCACHE["data"], _VCACHE["ts"] = out, _t.time()
+    return out
+
+
+def voice_support_report(cfg=None):
+    """voice profile → provider voice ពិត · បញ្ជីដែនកំណត់ដែលត្រូវបង្ហាញ"""
+    cfg = cfg or load()
+    pv = provider_voices(cfg)
+    ids = {v["id"] for v in pv["voices"]}
+    from .voices import VOICES
+    missing = [k for k, v in VOICES.items() if PROVIDER_VOICE[v[0]] not in ids] if ids else []
+    limits = []
+    if pv["provider"] == "edge":
+        limits.append("edge-tts មានសំឡេងខ្មែរ ២ ប៉ុណ្ណោះ (Piseth ប្រុស · Sreymom ស្រី) — "
+                      "ចាស់/ក្មេង/តួប្រុស ២ នាក់ បង្កើតដោយ rate · pitch · volume")
+    if missing:
+        limits.append(f"voice id ដែលមិនមានក្នុង provider: {', '.join(missing[:4])}")
+    return {"provider": pv["provider"], "verified": pv["verified"], "voices": pv["voices"],
+            "map": PROVIDER_VOICE, "missing": missing, "limitations": limits,
+            "source": pv.get("source")}
+
+
 # ---------- តួអង្គ → សំឡេង (ឥតគិតថ្លៃ ជាមួយ edge-tts) ----------
 # (gender, rate, pitch, volume) — edge-tts គាំទ្រ rate · pitch · volume ដោយផ្ទាល់
 # សំឡេងខ្មែរមានតែ ២ (Piseth ប្រុស · Sreymom ស្រី) → បង្កើត ចាស់/ក្មេង
@@ -290,6 +349,9 @@ def tts(text, char, speed, cfg):
     (gender, rate, pitch, volume), _char = voice_profile(char)
     voice = _g(cfg, f"tts_{gender}_{p}", c[gender])
     text = natural_text(text)          # សម្អាតអត្ថបទគ្រប់ provider
+    if os.environ.get("KH_TTS_STUB") == "1":       # តេស្ត offline (មិនប្រើក្នុង app ពិត)
+        from .tts_stub import synth
+        return synth(text, (gender, rate, pitch, volume))
     if p == "edge":   # ឥតគិតថ្លៃ គ្មាន Key
         import edge_tts
         rate, pitch, volume = prosody(text, _add_rate(rate, speed), pitch, volume,

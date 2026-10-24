@@ -14,6 +14,7 @@ def _data_dir():
         base = pathlib.Path(os.environ.get("XDG_DATA_HOME") or (pathlib.Path.home() / ".local" / "share"))
     return base / "KHDramaStudio"
 
-DATA = _data_dir()
+# KH_DATA_DIR = ការកំណត់សម្រាប់តេស្ត (ប្រើ folder ដាច់ដោយឡែក) — មិនប៉ះទិន្នន័យពិត
+DATA = pathlib.Path(os.environ["KH_DATA_DIR"]) if os.environ.get("KH_DATA_DIR") else _data_dir()
 STORE = DATA / "storage"; STORE.mkdir(parents=True, exist_ok=True)
 SETTINGS = (DATA / "settings.json") if FROZEN else (ROOT / "backend" / "settings.json")

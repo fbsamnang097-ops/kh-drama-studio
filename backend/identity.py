@@ -16,6 +16,7 @@ import json
 from . import cast as C
 from . import diarize as D
 from . import voices as V
+from . import registry as R
 
 # ---------- ពាក្យបញ្ជាក់អាយុ/ស្ទីល ----------
 TEEN_WORDS = ("少年", "少女", "学生", "同学", "高中生", "大学生", "年轻人", "小伙")
@@ -64,7 +65,8 @@ def _cluster_evidence(rows):
     return gender, age, round(conf, 2)
 
 
-def resolve(lines, audio=None, video_id="", voicebook=None, previous=None):
+def resolve(lines, audio=None, video_id="", voicebook=None, previous=None,
+            con=None, pid=None, provider="edge", reassign=False):
     """lines: [{zh,start,end}] · audio: diarize.analyze_segments(...)
 
     → {characters, items, summary, limitations, video_id}
@@ -193,27 +195,77 @@ def resolve(lines, audio=None, video_id="", voicebook=None, previous=None):
         # ភេទមិនដឹង + ក្មេង → មិនប្រឌិតភេទ (Test J)
         role = _role_code(gender, age)
 
-        voice = V.for_character(gender, age, used=used_voices)
-        used_voices.append(voice)
-        # voice book (ឈ្មោះដដែល = សំឡេងដដែល ពេញរឿង/ភាគ)
-        if name and voicebook and name in voicebook:
+        # ---- fingerprint (F0 + brightness) → តួអង្គដដែលឆ្លងឆាក ----
+        f0s = sorted((m["audio"] or {}).get("f0") or 0 for m in members)
+        f0s = [x for x in f0s if x > 0]
+        zs = sorted((m["audio"] or {}).get("zcr") or 0 for m in members)
+        fp_f0 = round(f0s[len(f0s) // 2], 1) if f0s else 0.0
+        fp_zcr = round(zs[len(zs) // 2], 3) if zs else 0.0
+
+        # ---- registry: តួអង្គដដែល? (ឈ្មោះ → fingerprint) ----
+        prev_char = None
+        if con is not None and pid:
+            prev_char = R.find_by_name(con, pid, name) if name else None
+            if not prev_char and fp_f0:
+                prev_char = R.find_by_fingerprint(con, pid, fp_f0, fp_zcr, gender, age)
+        elif previous:
+            prev_char = next((c for c in previous if name and c.get("name") == name), None)
+
+        corrected = ""
+        if prev_char:
+            cid = prev_char["id"]
+            voice = prev_char.get("voice") or ""
+            manual = (prev_char.get("assignment") == "manual") and not reassign
+            info = V.info(voice) if voice else {}
+            p_age = info.get("age") or ""
+            # ភេទ/អាយុ ដែលការវិភាគថ្មីផ្តល់ឱ្យ → កែបញ្ជីចាស់ (ID ដដែល)
+            if prev_char.get("gender") not in (None, "", gender) and gender != "unknown":
+                corrected = "gender"
+            if prev_char.get("age") not in (None, "", age) and age != "unknown":
+                corrected = (corrected + "+age") if corrected else "age"
+            # សំឡេងដែលមិនស៊ីនឹងភេទថ្មី (ខុសភេទ) → ត្រូវប្តូរ (លើកលែង manual)
+            bad = (not voice
+                   or info.get("gender") not in ("unknown", "", gender))
+            if age != "unknown" and p_age and p_age not in (age, "unknown"):
+                bad = True
+            if reassign or (bad and not manual):
+                voice = V.for_character(gender, age, used=used_voices)
+            assignment = "manual" if manual else "automatic"
+        else:
+            voice = V.for_character(gender, age, used=used_voices)
+            manual, assignment = False, "automatic"
+            cid = _next_id(characters, con, pid)
+
+        if voice not in used_voices:
+            used_voices.append(voice)
+        # voice book (ឈ្មោះដដែល = សំឡេងដដែល ឆ្លងភាគ)
+        if name and voicebook and name in voicebook and not manual:
             voice = voicebook[name]
             if voice not in used_voices:
                 used_voices.append(voice)
 
         if name:
             taken.add(name)
-        cid = f"c{ci + 1}"
         by_cluster[cl] = cid
-        characters.append({
-            "id": cid, "name": name or f"តួអង្គ {_vname(ci)}",
+        char = {
+            "id": cid, "name": name or (prev_char or {}).get("name") or f"តួអង្គ {_vname(ci)}",
             "gender": gender, "age": age, "role": role, "kind": "character",
             "cluster": cl, "conf": aconf if source.startswith("audio") else round(0.8 * (aconf or 0.6), 2),
             "lines": len(members), "voice": voice, "source": source,
-            "named": bool(name), "conflict": conflict, "age_source": age_src,
+            "assignment": assignment, "manual": manual,
+            "voice_provider": provider,
+            "named": bool(name) or bool((prev_char or {}).get("named")),
+            "conflict": conflict, "age_source": age_src,
             "evidence": source, "color": COLOR_POOL[ci % len(COLOR_POOL)],
-            "f0": round(sum((m["audio"] or {}).get("f0") or 0 for m in members) / max(1, len(members)), 1),
-        })
+            "f0": fp_f0, "zcr": fp_zcr,
+            # សំឡេងដែលបានជ្រើស មិនស៊ីនឹងភេទ/អាយុដែលបានវិភាគ (ត្រូវបង្ហាញក្នុង UI)
+            "voice_mismatch": bool(voice and V.info(voice).get("gender") not in ("unknown", "", gender)),
+            "corrected": corrected,
+        }
+        characters.append(char)
+        if con is not None and pid:
+            R.upsert_character(con, pid, {**char, "fp_f0": fp_f0, "fp_zcr": fp_zcr},
+                               keep_voice=not reassign)
 
     # ---- បន្ទាត់ដែលគ្មានសំឡេង (ឬសំឡេងស្ងាត់) ----
     loose = [r for r in dialogue_rows if r["cluster"] is None]
@@ -229,13 +281,17 @@ def resolve(lines, audio=None, video_id="", voicebook=None, previous=None):
             if not target:
                 if not unknown_id:
                     unknown_id = "u1"
-                    characters.append({
+                    u = {
                         "id": unknown_id, "name": "មិនទាន់ដឹង", "gender": "unknown",
                         "age": "unknown", "role": "unknown", "kind": "unknown",
                         "cluster": None, "conf": 0.3, "lines": 0,
                         "voice": "unknown_1", "source": "none", "color": "#94a3b8",
-                        "evidence": "none", "conflict": False,
-                    })
+                        "evidence": "none", "conflict": False, "assignment": "automatic",
+                        "voice_provider": provider, "named": False,
+                    }
+                    characters.append(u)
+                    if con is not None and pid:
+                        R.upsert_character(con, pid, u)
                 target = next(c for c in characters if c["id"] == unknown_id)
             target["lines"] += 1
             r["char_id"] = target["id"]
@@ -276,10 +332,22 @@ def resolve(lines, audio=None, video_id="", voicebook=None, previous=None):
     if any(c["age"] == "child" for c in characters):
         limits.append("edge-tts គ្មានសំឡេងខ្មែរក្មេង — បង្កើតដោយបង្កើនកម្ពស់សំឡេង")
 
+    if con is not None and pid:
+        R.ensure_project(con, pid, video_id)
+        R.save_segments(con, pid, [
+            {"idx": i, "cid": it["char_id"],
+             "voice_id": next((c["voice"] for c in characters if c["id"] == it["char_id"]), None),
+             "start": (lines[i].get("start") if i < len(lines) else None),
+             "end": (lines[i].get("end") if i < len(lines) else None),
+             "zh": (lines[i].get("zh") if i < len(lines) else None)}
+            for i, it in enumerate(items)])
+
     return {
         "video_id": video_id,
+        "project": pid or video_id,
         "characters": characters,
         "items": items,
+        "scenes": (audio or {}).get("scenes") or [],
         "summary": _summary(characters),
         "limitations": limits,
         "audio": {
@@ -287,6 +355,17 @@ def resolve(lines, audio=None, video_id="", voicebook=None, previous=None):
             "analysed": len(audio_segs),
         },
     }
+
+
+def _next_id(characters, con=None, pid=None):
+    """ID ថ្មីដែលមិនជាន់ (c1, c2, …) — តួអង្គចាស់រក្សា ID ដើម"""
+    used = {c["id"] for c in characters}
+    if con is not None and pid:
+        used |= {c["id"] for c in R.characters(con, pid)}
+    i = 1
+    while f"c{i}" in used:
+        i += 1
+    return f"c{i}"
 
 
 def _role_code(gender, age):
