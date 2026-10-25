@@ -155,6 +155,34 @@ def features(pcm, sr=SR, max_frames=24):
     }
 
 
+def speech_window(pcm, sr=SR, max_win=8.0, frame=0.10):
+    """ជ្រើសចន្លោះខ្លីបំផុតដែលមានសំឡេងខ្លាំងបំផុត (សម្រាប់បន្ទាត់វែង)
+
+    បន្ទាត់វែង (ឧ. ៣៥ វិនាទី) អាចមានអ្នកនិយាយច្រើន → F0 មធ្យមលាយគ្នា →
+    ភេទចេញខុស។ យកតែចន្លោះ ~៨ វិនាទី ដែលខ្លាំងបំផុត → ភេទរបស់អ្នកនិយាយ
+    ពិតបំផុត (ជាការការពារសម្រាប់ទិន្នន័យចាស់ដែលនៅមានបន្ទាត់វែង)។
+    """
+    n = max(1, int(sr * frame))
+    if len(pcm) <= n * 2:
+        return 0, len(pcm)
+    rms = []
+    for i in range(0, len(pcm) - n + 1, n):
+        s = 0
+        for v in pcm[i:i + n]:
+            s += v * v
+        rms.append(s / n)
+    k = max(1, int(round(max_win / frame)))
+    if len(rms) <= k:
+        return 0, len(pcm)
+    cur = sum(rms[:k])
+    best, best_i = cur, 0
+    for i in range(1, len(rms) - k + 1):
+        cur += rms[i + k - 1] - rms[i - 1]
+        if cur > best:
+            best, best_i = cur, i
+    return best_i * n, min(len(pcm), (best_i + k) * n)
+
+
 def analyze_segments(video, segments, sr=SR, progress=None):
     """វិភាគគ្រប់ segment ក្នុងវីដេអូ → លក្ខណៈសំឡេង + speaker cluster
 
@@ -178,6 +206,10 @@ def analyze_segments(video, segments, sr=SR, progress=None):
             st, en = 0.0, 0.0
         dur = max(0.05, en - st)
         pcm = decode_pcm(video, sr=sr, start=st, dur=dur)
+        if dur > 9.0:                    # បន្ទាត់វែង → វិភាគតែចន្លោះសំឡេងខ្លាំងបំផុត
+            a, b = speech_window(pcm, sr=sr)
+            if b - a >= sr * 1.0:
+                pcm = pcm[a:b]
         f = features(pcm, sr=sr)
         f["index"] = i
         f["start"], f["end"] = round(st, 2), round(en, 2)

@@ -372,8 +372,17 @@ def tts(text, char, speed, cfg):
         return synth(text, (gender, rate, pitch, volume))
     if p == "edge":   # ឥតគិតថ្លៃ គ្មាន Key
         import edge_tts
-        rate, pitch, volume = prosody(text, _add_rate(rate, speed), pitch, volume,
-                                      seed=sum(map(ord, text[:24])))
+        try:
+            from .voices import NATURAL
+        except Exception:
+            NATURAL = False
+        if not NATURAL:
+            # របៀបចាស់: លៃតម្រូវតាមបន្ទាត់ (±%) → សំឡេងប្រែប្រួលរាល់បន្ទាត់
+            rate, pitch, volume = prosody(text, _add_rate(rate, speed), pitch, volume,
+                                          seed=sum(map(ord, text[:24])))
+        else:
+            # របៀបធម្មតា: សំឡេងដដែល **គ្រប់បន្ទាត់** (គ្មាន pitch/rate បន្ថែម)
+            rate, pitch, volume = _add_rate(rate, speed), pitch, volume
         async def go():
             out = bytearray()
             async for ch in edge_tts.Communicate(text, voice, rate=rate, pitch=pitch, volume=volume).stream():

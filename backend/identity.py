@@ -30,6 +30,10 @@ STYLE_WORDS = {
 COLOR_POOL = ["#38bdf8", "#f472b6", "#f59e0b", "#34d399", "#a78bfa", "#fb7185",
               "#22d3ee", "#facc15", "#4ade80", "#f97316"]
 
+# ---- កម្រិតភស្តុតាងសំឡេង (ភេទមិនដែលប្តូរ) ----
+AUDIO_MIN = 0.55     # ភាពជឿជាក់អប្បបរមា → សំឡេងអាចកំណត់ភេទបន្ទាត់
+GUARD_MIN = 0.65     # បន្ទាត់ដែលជំទាស់ភេទ cluster → ផ្លាស់ទៅតួអង្គភេទខ្លួនឯង
+
 
 def _style(text):
     for k, words in STYLE_WORDS.items():
@@ -89,34 +93,77 @@ def resolve(lines, audio=None, video_id="", voicebook=None, previous=None,
         narr_part = (outside + " " + tail).strip()
         name = C._name_in(narr_part, text_cast)[1] or C.name_in_line(narr_part, names_all)
         a = audio_segs[i] if i < len(audio_segs) else {}
+        ag, aa, ac = D.voice_class(a) if a else ("unknown", "unknown", 0.0)
         rows.append({
             "index": i, "zh": raw, "role_text": role, "conf_text": tconf,
             "name": name, "audio": a, "cluster": a.get("cluster"),
             "style": _style(raw),
+            # ភស្តុតាងសំឡេង **របស់បន្ទាត់ខ្លួនឯង** (មិនមែនមធ្យមរបស់ cluster)
+            "a_gender": ag, "a_age": aa, "a_conf": ac,
+            # សញ្ញាអ្នកនិទានច្បាស់ (旁白 / 画外音 …) តែប៉ុណ្ណោះ
+            "narr_cue": C._any(raw, C.NARRATOR_CUES),
         })
 
     # ---- ជំហាន ២៖ បង្កើតតួអង្គពី cluster ----
-    characters, by_cluster, order = [], {}, []
-    narration_rows = [r for r in rows if r["role_text"] == C.NARR]
-    dialogue_rows = [r for r in rows if r["role_text"] != C.NARR]
+    # អ្នកនិទាន = បន្ទាត់ពិពណ៌នា ដែល **គ្មានសំឡេងច្បាស់** ។
+    # បើសំឡេងប្រាប់ភេទបានច្បាស់ → សំឡេងជាអ្នកសម្រេច (អាទិភាព ១) មិនមែនអត្ថបទទេ។
+    #
+    # នេះជាដំណោះស្រាយចម្បងនៃ "ស្រីឮសំឡេងប្រុស · ប្រុសឮសំឡេងស្រី"៖
+    # អត្ថបទ STT (គ្មានសម្រង់សម្ដី 「」) ត្រូវ C.detect() ចាត់ជា "អ្នកនិទាន" ស្ទើរទាំងអស់
+    # → បើយើងជឿអត្ថបទ បន្ទាត់ស្រីទាំងអស់នឹងឮសំឡេងអ្នកនិទាន (ប្រុស) ហើយបន្ទាត់
+    #   ដែលចាប់បាន cluster ខ្លះទៀត ឮសំឡេងស្រី → ភេទប្តូរទៅវិញទៅមក។
+    def _is_narration(r):
+        if r["narr_cue"]:
+            return True
+        if r["role_text"] != C.NARR:
+            return False
+        return not (r["a_conf"] >= AUDIO_MIN and r["a_gender"] in ("male", "female"))
 
-    # អ្នកនិទាន (បើមានបន្ទាត់ពិពណ៌នា)
+    characters, by_cluster = [], {}
+    narration_rows = [r for r in rows if _is_narration(r)]
+    dialogue_rows = [r for r in rows if not _is_narration(r)]
+
+    # អ្នកនិទាន (បើមានបន្ទាត់ពិពណ៌នាពិត) — ភេទតាមសំឡេង · អតិបរមា ២ សំឡេង (ប្រុស + ស្រី)
     narrator_id = None
+    narr_ids = {}
     if narration_rows:
-        g = "male"
-        a0 = next((r["audio"] for r in narration_rows if r["audio"]), {})
-        if a0:
-            ag, _aa, ac = D.voice_class(a0)
-            if ac >= 0.5:
-                g = ag if ag in ("male", "female") else "male"
-        narrator_id = "narrator"
-        characters.append({
-            "id": narrator_id, "name": "អ្នកនិទាន", "gender": g, "age": "adult",
-            "role": C.NARR, "kind": "narrator", "cluster": None,
-            "conf": 0.9, "lines": len(narration_rows),
-            "voice": "narrator_male" if g == "male" else "narrator_female",
-            "evidence": "text", "color": "#fbbf24",
-        })
+        gw = {}
+        for r in narration_rows:
+            if r["a_conf"] > 0 and r["a_gender"] in ("male", "female"):
+                gw[r["a_gender"]] = gw.get(r["a_gender"], 0.0) + r["a_conf"]
+        major = max(gw.items(), key=lambda x: x[1])[0] if gw else "male"
+        other = "female" if major == "male" else "male"
+        genders = [major]
+        if any(r["a_gender"] == other and r["a_conf"] >= AUDIO_MIN for r in narration_rows):
+            genders.append(other)
+        for g in genders:
+            nid = "narrator" if g == major else "narrator_2"
+            nm = ("អ្នកនិទាន" if nid == "narrator"
+                  else ("អ្នកនិទាន · ស្រី" if g == "female" else "អ្នកនិទាន · ប្រុស"))
+            ch = {"id": nid, "name": nm, "gender": g, "age": "adult", "role": C.NARR,
+                  "kind": "narrator", "cluster": None, "conf": 0.9, "lines": 0,
+                  "voice": V.for_character(g, "adult"), "evidence": "audio" if gw else "text",
+                  "source": "audio" if gw else "text", "color": "#fbbf24",
+                  "voice_provider": provider, "assignment": "automatic", "manual": False,
+                  "named": False, "conflict": False, "age_source": "default",
+                  "voice_mismatch": False, "corrected": "", "f0": 0.0, "zcr": 0.0}
+            narr_ids[g] = nid
+            characters.append(ch)
+            if con is not None and pid:     # រក្សាក្នុង DB → TTS ត្រូវសំឡេងភេទត្រឹមត្រូវ
+                # សំឡេងជ្រើសដោយដៃ រក្សាទុក **តែពេលត្រូវភេទ** (ភេទមិនដែលប្តូរ)
+                old = next((c for c in R.characters(con, pid) if c.get("id") == nid), None)
+                keep = bool(old and old.get("assignment") == "manual"
+                            and V.info(old.get("voice") or "").get("gender") in ("unknown", "", g))
+                R.upsert_character(con, pid, ch, keep_voice=keep)
+        narrator_id = narr_ids[major]
+        for r in narration_rows:
+            g = r["a_gender"] if (r["a_conf"] >= AUDIO_MIN and r["a_gender"] in narr_ids) else major
+            cid = narr_ids.get(g, narrator_id)
+            r["char_id"] = cid
+            for c in characters:
+                if c["id"] == cid:
+                    c["lines"] += 1
+                    break
 
     # cluster → តួអង្គ
     clusters = []
@@ -238,11 +285,13 @@ def resolve(lines, audio=None, video_id="", voicebook=None, previous=None,
 
         if voice not in used_voices:
             used_voices.append(voice)
-        # voice book (ឈ្មោះដដែល = សំឡេងដដែល ឆ្លងភាគ)
+        # voice book (ឈ្មោះដដែល = សំឡេងដដែល ឆ្លងភាគ) — តែមិនឱ្យឆ្លងភេទ
         if name and voicebook and name in voicebook and not manual:
-            voice = voicebook[name]
-            if voice not in used_voices:
-                used_voices.append(voice)
+            vb = V.normalize(voicebook[name])
+            if vb and V.info(vb).get("gender") in ("unknown", "", gender):
+                voice = vb
+                if voice not in used_voices:
+                    used_voices.append(voice)
 
         if name:
             taken.add(name)
@@ -267,6 +316,40 @@ def resolve(lines, audio=None, video_id="", voicebook=None, previous=None,
             R.upsert_character(con, pid, {**char, "fp_f0": fp_f0, "fp_zcr": fp_zcr},
                                keep_voice=not reassign)
 
+    # ---- ជំហាន ២.៥៖ ការពារភេទ (gender guard) ----
+    # បើសំឡេងរបស់បន្ទាត់ខ្លួនឯងបញ្ជាក់ភេទ **ផ្ទុយ** នឹងភេទរបស់ cluster (cluster ច្រឡំ
+    # អ្នកនិយាយ ឬ បន្ទាត់វែងលាយអ្នកនិយាយច្រើន) → បន្ទាត់នោះទៅតួអង្គភេទរបស់ខ្លួនវិញ។
+    def _char_of_gender(gender, f0=0.0, age="adult"):
+        cands = [c for c in characters if c.get("kind") == "character" and c.get("gender") == gender]
+        if cands:
+            if f0:
+                return min(cands, key=lambda c: abs((c.get("f0") or f0) - f0))
+            return cands[0]
+        cid = _next_id(characters, con, pid)
+        age = age if age in ("child", "teen", "adult", "elderly") else "adult"
+        ch = {"id": cid, "name": f"តួអង្គ {_vname(len(characters))}", "gender": gender,
+              "age": age, "role": _role_code(gender, age), "kind": "character",
+              "cluster": None, "conf": 0.6, "lines": 0,
+              "voice": V.for_character(gender, age), "source": "audio",
+              "assignment": "automatic", "manual": False, "named": False,
+              "voice_provider": provider, "conflict": False, "age_source": "audio",
+              "voice_mismatch": False, "corrected": "", "f0": float(f0 or 0.0), "zcr": 0.0,
+              "color": COLOR_POOL[len(characters) % len(COLOR_POOL)], "evidence": "audio"}
+        characters.append(ch)
+        if con is not None and pid:
+            R.upsert_character(con, pid, ch, keep_voice=False)
+        return ch
+
+    for r in dialogue_rows:
+        if r.get("char_id") or r["a_conf"] < GUARD_MIN or r["a_gender"] not in ("male", "female"):
+            continue
+        cid = by_cluster.get(r["cluster"]) if r["cluster"] is not None else None
+        ch = next((c for c in characters if c["id"] == cid), None)
+        if ch and ch.get("kind") == "character" and ch.get("gender") in ("male", "female") \
+                and ch["gender"] != r["a_gender"]:
+            tgt = _char_of_gender(r["a_gender"], (r["audio"] or {}).get("f0") or 0.0, r["a_age"])
+            r["char_id"] = tgt["id"]
+
     # ---- បន្ទាត់ដែលគ្មានសំឡេង (ឬសំឡេងស្ងាត់) ----
     loose = [r for r in dialogue_rows if r["cluster"] is None]
     if loose:
@@ -278,6 +361,12 @@ def resolve(lines, audio=None, video_id="", voicebook=None, previous=None,
                 target = next((c for c in characters if c["name"] == r["name"]), None)
             if not target and r["role_text"] not in ("", C.NARR):
                 target = next((c for c in characters if c["role"] == r["role_text"]), None)
+            if not target and r["a_conf"] >= AUDIO_MIN and r["a_gender"] in ("male", "female"):
+                # សំឡេងប្រាប់ភេទ → កុំឱ្យបន្ទាត់ស្រីធ្លាក់ទៅសំឡេងប្រុស
+                target = _char_of_gender(r["a_gender"], (r["audio"] or {}).get("f0") or 0.0,
+                                         r["a_age"])
+                if r["name"]:
+                    target["name"] = target.get("name") or r["name"]
             if not target:
                 if not unknown_id:
                     unknown_id = "u1"
@@ -299,10 +388,10 @@ def resolve(lines, audio=None, video_id="", voicebook=None, previous=None,
     # ---- ជំហាន ៣៖ ចាត់បន្ទាត់ → តួអង្គ ----
     items = []
     for r in rows:
-        if r["role_text"] == C.NARR and narrator_id:
-            cid = narrator_id
-        elif r.get("char_id"):
+        if r.get("char_id"):
             cid = r["char_id"]
+        elif r["role_text"] == C.NARR and narrator_id:
+            cid = narrator_id
         elif r["cluster"] is not None and r["cluster"] in by_cluster:
             cid = by_cluster[r["cluster"]]
         else:
@@ -331,6 +420,10 @@ def resolve(lines, audio=None, video_id="", voicebook=None, previous=None,
         limits.append("edge-tts គ្មានសំឡេងខ្មែរចាស់ — បង្កើតដោយបន្ថយល្បឿន និងកម្ពស់សំឡេង")
     if any(c["age"] == "child" for c in characters):
         limits.append("edge-tts គ្មានសំឡេងខ្មែរក្មេង — បង្កើតដោយបង្កើនកម្ពស់សំឡេង")
+
+    # ចំនួនបន្ទាត់ពិតក្នុងមួយតួអង្គ (ក្រោយ gender guard)
+    for c in characters:
+        c["lines"] = sum(1 for it in items if it["char_id"] == c["id"])
 
     if con is not None and pid:
         R.ensure_project(con, pid, video_id)
