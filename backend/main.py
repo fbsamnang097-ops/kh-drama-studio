@@ -8,6 +8,7 @@ from . import subs as SB
 from . import graph as G
 from . import cast as C
 from . import diarize as D
+from . import segments as SG
 from . import identity as ID
 from . import voices as V
 from . import registry as RG
@@ -56,11 +57,35 @@ def transcribe(b: Vid):
     def run():
         ff("-i", str(STORE / f"{b.id}.mp4"), "-vn", "-ac", "1", "-ar", "16000", "-b:a", "48k", str(mp3))
         segs = P.stt(mp3, P.load())
+        # កាត់បន្ទាត់វែង (ឧ. 5.3 → 41.0) តាមសំឡេងពិត — គ្មានឃ្លាលើស ៨ វិនាទី
+        segs = SG.fit(segs, mp3)
         scan = C.scan([s.get("zh", "") for s in segs])   # តួអង្គស្វ័យប្រវត្តិ
         for s, it in zip(segs, scan["items"]):
             s["char"] = it["char"]; s["conf"] = it["conf"]
         return segs
     return guard(run)
+
+class FixLines(BaseModel):
+    id: str = ""
+    segments: list[dict] = []
+
+
+@app.post("/api/segments/fix")
+def segments_fix(b: FixLines):
+    """កាត់បន្ទាត់វែងក្នុងគម្រោងដែលមានស្រាប់ (មិនចាំបាច់ Transcribe ម្តងទៀត)
+
+    ប្រើសំឡេងពិតរបស់វីដេអូ → កាត់ត្រង់ចន្លោះស្ងាត់ · គ្មានបន្ទាត់លើស ៨ វិនាទី។
+    """
+    name = pathlib.Path(b.id).name if b.id else ""
+    audio = None
+    for ext in ("mp4", "mp3", "wav", "m4a"):
+        if name and (STORE / f"{name}.{ext}").exists():
+            audio = STORE / f"{name}.{ext}"
+            break
+    segs = [s for s in b.segments if isinstance(s, dict)]
+    out = SG.fit(segs, str(audio) if audio else None)
+    return {"segments": out, "count": len(out), "audio": bool(audio)}
+
 
 class CastIn(BaseModel):
     lines: list[str]
@@ -130,6 +155,7 @@ def characters_detect(b: DetectIn):
             res["provider"] = sup
             res["limitations"] = list(dict.fromkeys(res.get("limitations", []) + sup["limitations"]))
             RG.ensure_project(con, pid, b.id)
+            ID.save_cast(STORE, b.id, res)     # fallback ពេល TTS គ្មាន row ក្នុង DB
             return res
         finally:
             con.close()
@@ -243,24 +269,55 @@ class Sp(BaseModel):
 
 
 def _voice_for(b):
-    """char_id → voice ពី registry (SQLite) — បើគ្មាន → cast json → char/voice id"""
-    if b.video and b.char_id:
+    """char_id → voice ពី registry (SQLite) — បើគ្មាន → cast json → role code → ភេទ
+
+    គោលការណ៍៖ ភេទមិនដែលប្តូរ។ បើគ្មាន voice ក្នុង DB/cast → ប្រើ role code
+    (男主/女主/旁白 …) ឬ ភេទដែលផ្ញើមក → ត្រឡប់ voice id ពិត (male_adult_1 / female_adult_1)
+    ដើម្បីឱ្យ Piseth/Sreymom ត្រូវនឹងភេទរបស់បន្ទាត់។
+    """
+    if b.video:
         pid = b.video
+        cid = b.char_id
         try:
             con = reg()
             try:
-                for c in RG.characters(con, pid):
-                    if c.get("id") == b.char_id and c.get("voice"):
-                        return c["voice"]
+                if not cid and b.idx >= 0:
+                    # frontend មិនបានផ្ញើ char_id → ប្រើតួអង្គដែលរក្សាទុករបស់ segment នេះ
+                    rows = RG.segments(con, pid)
+                    if 0 <= b.idx < len(rows):
+                        cid = (rows[b.idx].get("cid") or "").strip()
+                if cid:
+                    for c in RG.characters(con, pid):
+                        if c.get("id") == cid and c.get("voice"):
+                            return V.normalize(c["voice"])
             finally:
                 con.close()
         except Exception as e:
             print("registry lookup failed:", e, flush=True)
+    if b.video and b.char_id:
         data = ID.load_cast(STORE, b.video) or {}
         for c in data.get("characters", []):
             if c.get("id") == b.char_id:
-                return c.get("voice") or c.get("role") or b.char or b.gender
-    return b.char or b.gender
+                if c.get("voice"):
+                    return V.normalize(c["voice"])
+                if c.get("gender") in ("male", "female"):     # cast json គ្មាន voice
+                    return V.for_character(c["gender"], c.get("age") or "adult")
+    char = (b.char or "").strip()
+    if char in V.VOICES:                       # ជា voice id ស្រាប់
+        return V.normalize(char)
+    if char:                                   # ជា role code (男主/女主/旁白 …)
+        try:
+            from .cast import normalize as _cnorm
+            code = _cnorm(char)
+        except Exception:
+            code = char
+        prof = P.CHAR_VOICES.get(code)
+        if prof and prof[0] in ("male", "female"):
+            return V.for_character(prof[0], "adult")     # 男主→Piseth · 女主→Sreymom
+    g = str(b.gender or "").strip().lower()
+    if g in ("male", "female"):
+        return V.for_character(g, "adult")
+    return "unknown_1"
 
 
 @app.post("/api/tts")

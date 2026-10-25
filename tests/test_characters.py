@@ -160,6 +160,63 @@ def main():
     check("J: does not invent gender", c["gender"] == "unknown", f"{c['gender']}/{c['age']}")
     check("J: uses the neutral fallback voice", c["voice"] == "unknown_1", c["voice"])
 
+    print("\n=== Test L: STT lines without quotes → audio decides (not the narrator) ===")
+    # អត្ថបទ STT ធម្មតាគ្មាន 「」 → C.detect() ចាត់ជា "អ្នកនិទាន" ស្ទើរទាំងអស់។
+    # ត្រូវយក **សំឡេង** ជាអ្នកសម្រេចភេទ ដើម្បីកុំឱ្យស្រីឮសំឡេងប្រុស (បញ្ហា v1.0.23)។
+    lines = [{"start": 0, "end": 2, "zh": "终结"},
+             {"start": 2, "end": 4, "zh": "動手"},
+             {"start": 4, "end": 6, "zh": "快跑"},
+             {"start": 6, "end": 8, "zh": "来了"}]
+    r = run_case(tmp, "L", lines, [(0, 2, 112), (2, 4, 212), (4, 6, 112), (6, 8, 212)])
+    by_id = {c["id"]: c for c in r["characters"]}
+    seq = [V.info(by_id[i["char_id"]]["voice"])["gender"] for i in r["items"]]
+    check("L: each STT line uses its own speaker's gender",
+          seq == ["male", "female", "male", "female"], str(seq))
+    check("L: no female line is voiced by the narrator/male voice",
+          all(by_id[i["char_id"]].get("kind") != "narrator" for i in r["items"]),
+          str([(by_id[i["char_id"]].get("kind"), by_id[i["char_id"]]["voice"]) for i in r["items"]]))
+
+    print("\n=== Test M: narration lines with both male and female voices ===")
+    # អ្នកនិទានពិត (មាន 旁白) តែសំឡេងប្រុស/ស្រីឆ្លាស់គ្នា → ត្រូវបំបែកជា ២ សំឡេង
+    lines = [{"start": 0, "end": 2, "zh": "（旁白）夜色渐深。"},
+             {"start": 2, "end": 4, "zh": "（旁白）她轻轻关上门。"}]
+    r = run_case(tmp, "M", lines, [(0, 2, 110), (2, 4, 210)])
+    by_id = {c["id"]: c for c in r["characters"]}
+    seq = [V.info(by_id[i["char_id"]]["voice"])["gender"] for i in r["items"]]
+    check("M: narrator lines follow the real speaker gender",
+          seq == ["male", "female"], str(seq))
+    check("M: female narrator line never gets the male voice",
+          r["items"][1]["char_id"] != r["items"][0]["char_id"], str([i["char_id"] for i in r["items"]]))
+
+    print("\n=== Test N: one identical voice per gender (no per-line prosody) ===")
+    import types
+    from backend import providers as PR
+    calls = []
+
+    class FakeComm:
+        def __init__(self, text, voice, rate=None, pitch=None, volume=None):
+            calls.append((voice, rate, pitch, volume))
+
+        async def stream(self):
+            yield {"type": "audio", "data": b"\xff\xfb\x90\x00"}
+
+    real_edge = sys.modules.get("edge_tts")
+    sys.modules["edge_tts"] = types.SimpleNamespace(Communicate=FakeComm)
+    try:
+        PR.tts("សួស្តី!", "female_adult_1", 0.0, PR.load())
+        PR.tts("អ្នកណា?", "female_adult_1", 0.0, PR.load())
+        PR.tts("សួស្តី!", "male_adult_1", 0.0, PR.load())
+    finally:
+        if real_edge is None:
+            sys.modules.pop("edge_tts", None)
+        else:
+            sys.modules["edge_tts"] = real_edge
+    check("N: same character voice params on every line",
+          len(calls) == 3 and calls[0] == calls[1] == ("km-KH-SreymomNeural", "+0%", "+0Hz", "+0%"),
+          str(calls))
+    check("N: male and female keep their own provider voice",
+          calls[2] == ("km-KH-PisethNeural", "+0%", "+0Hz", "+0%"), str(calls[2]))
+
     print("\n=== Extra: voice book keeps a name's voice across episodes ===")
     book = {}
     r1 = run_case(tmp, "X1", [{"start": 0, "end": 2, "zh": "小明说：「你好。」"}], [(0, 2, 108)], book=book)

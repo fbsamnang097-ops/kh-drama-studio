@@ -188,6 +188,7 @@ video ──► diarize.py ─────► scenes.py ──► identity.py �
 | GET | `/api/project/{pid}` | ផ្ទុកតួអង្គ + segments ឡើងវិញ (ក្រោយ restart) |
 | GET | `/api/export_manifest?id=` | បន្ទាត់ → តួអង្គ → សំឡេងដែលប្រើពិត (`match`) |
 | GET | `/api/voices` · POST `/api/voices/refresh` | provider voices ពិត + ដែនកំណត់ |
+| POST | `/api/segments/fix` | `{id, segments}` → កាត់បន្ទាត់វែង ≤ ៨ វិនាទី (ប្រើសំឡេងពិត) |
 | POST | `/api/tts` | `{text, char_id, video, idx}` → **សំឡេងពី DB** + កត់ត្រា segment |
 | POST | `/api/voice_preview` | `{voice, text}` → mp3 សាកស្តាប់ |
 
@@ -197,6 +198,30 @@ video ──► diarize.py ─────► scenes.py ──► identity.py �
 - **🔍 Re-detect Characters** · **✨ Auto Assign Voice** (reset → auto) · **☑ ស្កេនស្វ័យប្រវត្តិ**
 - ជួរ Character ក្នុងតារាងបន្ទាត់ ជា **read-only** (គ្មាន dropdown)
 - ក្រោយ reload វីដេអូ → ទាញការចាត់សំឡេងពី SQLite ដោយស្វ័យប្រវត្តិ
+
+### ៦.៥ បន្ទាត់វែង + ភេទសំឡេងតួអង្គ (v1.0.24) — “ស្រីឮប្រុស / ប្រុសឮស្រី” ដាច់ខាត
+
+បញ្ហាដែលអ្នកប្រើរាយការណ៍៖ បន្ទាត់ `#1 Start 5.3 → End 41.0` (៣៥,៧ វិនាទី) តែអត្ថបទត្រឹម `终结`
+ហើយពេល Dubbing **ស្រីឮសំឡេងប្រុស · ប្រុសឮសំឡេងស្រី**។ មូលហេតុពិត ២៖
+
+| មូលហេតុ | ដំណោះស្រាយ |
+|---|---|
+| STT (faster-whisper) ត្រឡប់បន្ទាត់វែង ៣៥ វិនាទី គ្របលើអ្នកនិយាយច្រើន → សំឡេងតួអង្គតែមួយសម្រាប់ទាំងអស់ | `backend/segments.py` 🆕 — `fit()` កាត់គ្រប់បន្ទាត់ ≤ **៨ វិនាទី** ត្រង់ចន្លោះស្ងាត់ តាមសំឡេងពិត (ffmpeg) |
+| អត្ថបទ STT គ្មាន `「」` → `cast.detect()` ចាត់ជា **“អ្នកនិទាន”** ស្ទើរទាំងអស់ → បន្ទាត់ស្រីទាំងអស់យកសំឡេងអ្នកនិទាន (ប្រុស) | `identity.resolve()` — **សំឡេងជាអ្នកសម្រេចភេទ** (អាទិភាព ១) មិនមែនអត្ថបទ · + gender guard ក្នុងគ្រប់បន្ទាត់ |
+
+- `AUDIO_MIN 0.55` → សំឡេងច្បាស់ = ភេទបន្ទាត់ · `GUARD_MIN 0.65` → បន្ទាត់ដែលជំទាស់ cluster ផ្លាស់ទៅតួអង្គភេទខ្លួនឯង
+- អ្នកនិទានពិត (`旁白`/`画外音`) → បំបែកបាន **២ សំឡេង** (ប្រុស + ស្រី) តាមសំឡេងពិត · រក្សាក្នុង DB
+- `diarize.speech_window()` — បន្ទាត់ចាស់វែង (> ៩ វិ) វិភាគតែចន្លោះសំឡេងខ្លាំងបំផុត → ភេទមិនលាយ
+- `POST /api/segments/fix` 🆕 · ប៊ូតុង **✂️ កាត់វេនវែង** — ជួសជុលគម្រោងចាស់ដោយមិនចាំបាច់ Transcribe ម្តងទៀត
+- `P.tts` — របៀបធម្មតា (NATURAL) **គ្មាន prosody តាមបន្ទាត់** → សំឡេងតួអង្គ **ដដែលគ្រប់បន្ទាត់**
+- `_voice_for()` — គ្មាន voice ក្នុង DB/cast → ប្រើ role code ឬភេទ → `male_adult_1`/`female_adult_1` (មិនធ្លាក់ទៅ Piseth ដោយស្វ័យប្រវត្តិ)
+
+```
+$ python tests/test_segments.py     → 19 passed, 0 failed
+$ python tests/test_characters.py   → 23 passed, 0 failed
+$ python tests/test_dubbing.py      → 15 passed, 0 failed
+$ python tests/test_updates.py      → 16 passed, 0 failed
+```
 
 ### ៦.៤ ជូនដំណឹងកំណែថ្មី (v1.0.23) — អ្នកប្រើដឹង និងទាញយកបានភ្លាម
 រាល់ពេលចេញកំណែថ្មី app **ប្រាប់អ្នកប្រើដោយខ្លួនឯង** — មិនត្រូវរង់ចាំគេសួរ។

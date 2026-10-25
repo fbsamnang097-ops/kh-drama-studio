@@ -256,6 +256,31 @@ export default function App() {
     setCastMsg(`✨ រកឃើញតួអង្គ · ${r.summary}`);
   });
 
+  // ✂️ កាត់បន្ទាត់វែង (ឧ. 5.3 → 41.0) តាមសំឡេងពិត — សម្រាប់គម្រោងដែលបាន Transcribe មុន v1.0.24
+  const fixLines = run("កំពុងកាត់បន្ទាត់វែង...", async () => {
+    if (!segs.length) throw new Error("សូម Transcribe ឬ Import STT ជាមុន");
+    const long = segs.filter((s) => s.end - s.start > 8.05).length;
+    if (!long) return alert("គ្មានបន្ទាត់វែងទេ — គ្រប់បន្ទាត់ ≤ ៨ វិនាទី ✅");
+    if (!confirm(`មានបន្ទាត់វែង ${long} បន្ទាត់។ កាត់តាមសំឡេងពិតឥឡូវ? (បន្ទាត់ដែលកាត់ នឹងបាត់ការបកប្រែ/សំឡេងចាស់)`)) return;
+    const r = await api("/api/segments/fix", {
+      id: video?.id || "",
+      segments: segs.map((x) => ({ start: x.start, end: x.end, zh: x.zh })),
+    });
+    const key = (x) => `${(+x.start).toFixed(2)}|${(+x.end).toFixed(2)}|${x.zh}`;
+    const old = new Map(segs.map((x) => [key(x), x]));
+    const next = (r.segments || []).map((x, i) => {
+      const o = old.get(key(x));
+      return {
+        id: i + 1, start: x.start, end: x.end, zh: x.zh,
+        km: o?.km || "", char: o?.char || DEF_CHAR, char_id: o?.char_id, conf: o?.conf,
+        status: o?.status || "Pending", audio: o?.audio || "",
+      };
+    });
+    if (!next.length) throw new Error("កាត់មិនបាន — សូមពិនិត្យបន្ទាត់");
+    setSegs(next);
+    setCastMsg(`✂️ កាត់បន្ទាត់វែងរួច · ${next.length} បន្ទាត់ · គ្មានលើស ៨ វិនាទី`);
+  });
+
   const translate = run("កំពុងបកប្រែ...", async () => {
     const r = await api("/api/translate", { lines: segs.map((s) => s.zh) });
     setSegs((s) => s.map((x, i) => ({ ...x, km: r[i]?.km ?? x.km, char: r[i]?.char ?? x.char })));
@@ -494,7 +519,7 @@ export default function App() {
       {/* ២. Subtitle Editor */}
       <section className="pnl pnl-violet p-3 pt-4 flex flex-col min-h-0 min-w-0">
         <div className="flex gap-2 mb-2 flex-wrap items-center">
-          <B c="violet" onClick={addText}>+ Add Text</B><B c="red" onClick={del}>Delete</B><B c="amber" onClick={findReplace}>Find &amp; Replace</B><B c="pink" onClick={scanChars}>🔍 ស្កេនតួអង្គ</B><B c="violet" onClick={() => setShowCast((v) => !v)}>🎭 តួអង្គ ({cast.length})</B>
+          <B c="violet" onClick={addText}>+ Add Text</B><B c="red" onClick={del}>Delete</B><B c="amber" onClick={findReplace}>Find &amp; Replace</B><B c="pink" onClick={scanChars}>🔍 ស្កេនតួអង្គ</B><B c="cyan" onClick={fixLines} title="កាត់បន្ទាត់វែង (ឧ. 5.3 → 41.0) តាមសំឡេងពិត">✂️ កាត់វេនវែង</B><B c="violet" onClick={() => setShowCast((v) => !v)}>🎭 តួអង្គ ({cast.length})</B>
           {!expProg && <span className="text-xs opacity-70">{busy}</span>}
           {castMsg && <span className="text-xs" style={{ color: "#6ee7b7" }}>{castMsg}</span>}
 
