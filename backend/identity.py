@@ -214,7 +214,7 @@ def resolve(lines, audio=None, video_id="", voicebook=None, previous=None,
         corrected = ""
         if prev_char:
             cid = prev_char["id"]
-            voice = prev_char.get("voice") or ""
+            voice = V.normalize(prev_char.get("voice") or "")
             manual = (prev_char.get("assignment") == "manual") and not reassign
             info = V.info(voice) if voice else {}
             p_age = info.get("age") or ""

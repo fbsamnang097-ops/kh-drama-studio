@@ -71,12 +71,21 @@ def ensure_project(con, pid, video=""):
 
 
 # ---------- characters ----------
+def _norm_voice(v):
+    """voice ចាស់ → សំឡេងធម្មតា (Piseth/Sreymom) តាមភេទ · ភេទមិនប្តូរ"""
+    try:
+        from .voices import normalize
+        return normalize(v)
+    except Exception:
+        return v
+
+
 def _row_to_char(r):
     return {
         "id": r["cid"], "name": r["name"] or "", "gender": r["gender"] or "unknown",
         "age": r["age"] or "unknown", "role": r["role"] or "unknown",
-        "voice_provider": r["voice_provider"], "voice": r["voice_id"],
-        "auto_voice": r["auto_voice"] if "auto_voice" in r.keys() else None,
+        "voice_provider": r["voice_provider"], "voice": _norm_voice(r["voice_id"]),
+        "auto_voice": _norm_voice(r["auto_voice"]) if "auto_voice" in r.keys() else None,
         "assignment": r["assignment"] or "automatic", "manual": (r["assignment"] == "manual"),
         "conf": r["conf"] if r["conf"] is not None else 0.5,
         "named": bool(r["named"]), "fp_f0": r["fp_f0"], "fp_zcr": r["fp_zcr"],
@@ -200,7 +209,10 @@ def save_segments(con, pid, rows):
 
 
 def segments(con, pid):
-    return [dict(r) for r in con.execute("SELECT * FROM segments WHERE pid=? ORDER BY idx", (pid,))]
+    rows = [dict(r) for r in con.execute("SELECT * FROM segments WHERE pid=? ORDER BY idx", (pid,))]
+    for r in rows:
+        r["voice_id"] = _norm_voice(r.get("voice_id"))
+    return rows
 
 
 def set_segment_voice(con, pid, idx, cid, voice_id, audio=None):

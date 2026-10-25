@@ -282,15 +282,17 @@ def main():
               c1 == 200 and c2 == 200 and tts1.get("voice") == tts2.get("voice") == by_id[target]["voice"],
               f"{tts1.get('voice')} / {tts2.get('voice')} / assigned {by_id[target]['voice']}")
 
-        # ---------------- manual override + reset ----------------
-        ov_voice = "female_adult_3"
+        # ---------------- manual override + reset (natural voices) ----------------
+        # សំឡេងធម្មតា: មានតែ Piseth/Sreymom → ការជ្រើសដៃកត់ត្រា assignment=manual
+        ov_voice = "female_adult_3"        # profile id ចាស់ → normalize → female_adult_1
         ao, _ = call("/api/characters/assign", {"id": vid, "project": project, "overrides": {target: ov_voice}})
         saved = [c for c in ao["characters"] if c["id"] == target][0]
         rd, _ = call("/api/characters/detect", {"id": vid, "project": project, "segments": segments})
         after = [c for c in rd["characters"] if c["id"] == target][0]
         check("manual override survives re-detection",
-              saved["voice"] == ov_voice and after["voice"] == ov_voice and after.get("assignment") == "manual",
-              f"{saved['voice']} → {after['voice']} ({after.get('assignment')})")
+              saved["voice"] == "female_adult_1" and saved.get("assignment") == "manual"
+              and after["voice"] == "female_adult_1" and after.get("assignment") == "manual",
+              f"{saved['voice']} ({saved.get('assignment')}) → {after['voice']} ({after.get('assignment')})")
 
         # ---------------- Test 9: restart backend ----------------
         before = {c["id"]: c["voice"] for c in call(f"/api/project/{project}")[0]["characters"]}
@@ -299,15 +301,18 @@ def main():
         srv.start()
         st, code9 = call(f"/api/project/{project}")
         after9 = {c["id"]: c["voice"] for c in st.get("characters", [])}
+        check("Test 9b: only Piseth/Sreymom natural voices are used",
+              set(after9.values()) <= {"male_adult_1", "female_adult_1", "unknown_1"}, str(sorted(set(after9.values()))))
         check("Test 9: voice assignments survive a backend restart",
-              code9 == 200 and before == after9 and after9.get(target) == ov_voice,
+              code9 == 200 and before == after9 and after9.get(target) == "female_adult_1",
               f"{len(after9)} characters restored")
 
         # reset manual → automatic voice for that character
         rr, _ = call("/api/characters/assign", {"id": vid, "project": project, "overrides": {}, "reset": True})
-        auto_voice = next(c["voice"] for c in rr["characters"] if c["id"] == target)
+        reset_char = next(c for c in rr["characters"] if c["id"] == target)
         check("Auto Assign Voice resets manual override",
-              auto_voice != ov_voice, f"{ov_voice} → {auto_voice}")
+              reset_char.get("assignment") == "automatic" and reset_char["voice"] == "female_adult_1",
+              f"{ov_voice} → {reset_char['voice']} ({reset_char.get('assignment')})")
 
         # ---------------- Test 10: export ----------------
         # បង្កើតសំឡេងសម្រាប់គ្រប់ segment ឡើងវិញ (ក្រោយ reset)

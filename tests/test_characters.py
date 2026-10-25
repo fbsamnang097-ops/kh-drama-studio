@@ -78,19 +78,23 @@ def main():
     print("\n=== Test C: elderly man ===")
     r = run_case(tmp, "C", [{"start": 0, "end": 2, "zh": "爷爷说：「孩子，别怕。」"}], [(0, 2, 105)])
     c = r["characters"][0]
-    check("C: elderly male voice", V.info(c["voice"])["gender"] == "male" and V.info(c["voice"])["age"] == "elderly",
+    check("C: elderly man keeps a male voice (natural)",
+          V.info(c["voice"])["gender"] == "male" and c["age"] == "elderly",
           f"{c['gender']}/{c['age']} → {c['voice']}")
 
     print("\n=== Test D: elderly woman ===")
     r = run_case(tmp, "D", [{"start": 0, "end": 2, "zh": "奶奶说：「吃饭了。」"}], [(0, 2, 190)])
     c = r["characters"][0]
-    check("D: elderly female voice", V.info(c["voice"])["gender"] == "female" and V.info(c["voice"])["age"] == "elderly",
+    check("D: elderly woman keeps a female voice (natural)",
+          V.info(c["voice"])["gender"] == "female" and c["age"] == "elderly",
           f"{c['gender']}/{c['age']} → {c['voice']}")
 
     print("\n=== Test E: child ===")
     r = run_case(tmp, "E", [{"start": 0, "end": 2, "zh": "小孩说：「妈妈！」"}], [(0, 2, 330)])
     c = r["characters"][0]
-    check("E: child voice", V.info(c["voice"])["age"] == "child", f"{c['gender']}/{c['age']} → {c['voice']}")
+    check("E: child keeps a matching-gender natural voice",
+          V.info(c["voice"])["gender"] == (c["gender"] if c["gender"] in ("male", "female") else "male")
+          and c["age"] == "child", f"{c['gender']}/{c['age']} → {c['voice']}")
 
     print("\n=== Test F: scene with only male speakers ===")
     lines = [{"start": 0, "end": 2, "zh": "「你来了。」"},
@@ -131,8 +135,17 @@ def main():
     lines = [lines[0], lines[2], lines[3]]
     r = run_case(tmp, "I", lines, speakers)
     vs = [c["voice"] for c in r["characters"] if c["kind"] == "character"]
-    check("I: two males get distinct voices", len(vs) >= 2 and len(set(vs)) == len(vs), str(vs))
+    check("I: two males use the natural Piseth voice", len(vs) >= 2 and set(vs) == {"male_adult_1"}, str(vs))
     check("I: both are male", all(V.info(v)["gender"] == "male" for v in vs), str(vs))
+
+    print("\n=== Test K: natural voices (no pitch/rate shifts) ===")
+    shifts = {v["id"]: (v["rate"], v["pitch"], v["volume"]) for v in V.all_for_ui()}
+    check("K: provider voices are used as-is",
+          all(rate.replace("+", "").replace("%", "") == "0"
+              and pitch.replace("+", "").replace("Hz", "") == "0"
+              for rate, pitch, _vol in shifts.values()), str(shifts))
+    check("K: only Piseth / Sreymom offered",
+          set(shifts) == {"male_adult_1", "female_adult_1", "unknown_1"}, str(list(shifts)))
 
     print("\n=== Test J: uncertain speaker ===")
     # គ្មានសំឡេង (video ស្ងាត់) + អត្ថបទគ្មានភេទ/អាយុ → unknown

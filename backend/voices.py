@@ -1,13 +1,25 @@
-"""បញ្ជីសំឡេង (Voice catalog) — តួអង្គនីមួយៗ → សំឡេងខុសៗគ្នា · ថេរពេញរឿង
+"""បញ្ជីសំឡេង (Voice catalog) — តួអង្គនីមួយៗ → សំឡេងថេរពេញរឿង
 
 ⚠️ ដែនកំណត់ពិតរបស់ provider ឥតគិតថ្លៃ (edge-tts)៖
    សំឡេងខ្មែរមានតែ **២** — Piseth (ប្រុស) និង Sreymom (ស្រី)។
-   ដូច្នេះ ចាស់ · ក្មេង · ក្មេងប្រុស/ស្រី · តួប្រុស ២ នាក់ ត្រូវបង្កើតដោយលៃតម្រូវ
-   rate (ល្បឿន) · pitch (កម្ពស់សំឡេង) · volume (កម្រិត) — នេះជាការប៉ាន់ស្មានជិតបំផុត
-   ដែលអាចធ្វើបានដោយមិនប្រើសេវាបង់ប្រាក់។
-   បើអ្នកកំណត់ Azure/Google/ElevenLabs (មាន key) អាចដាក់ voice id ពិតក្នុង
-   Settings ហើយប្រព័ន្ធនឹងប្រើវាជំនួស (voice book នៅដដែល)។
+
+របៀបធម្មតា (NATURAL · លំនាំដើម v1.0.22+)៖
+   ប្រើ **សំឡេងពិតរបស់ provider ដូចដើម** — គ្មានកែ rate/pitch/volume ។
+   តួអង្គប្រុសទាំងអស់ → Piseth · ស្រីទាំងអស់ → Sreymom · មិនដឹង → Piseth ។
+   ភេទមិនដែលប្តូរ (ចាស់ស្រីនៅតែសំឡេងស្រី)។
+
+របៀបចាស់ (VARIED · KH_VOICE_STYLE=varied)៖
+   ចាស់/ក្មេង/តួប្រុស ២ នាក់ ខុសគ្នាដោយ rate · pitch · volume ។
 """
+
+import os
+
+STYLE = (os.environ.get("KH_VOICE_STYLE") or "natural").strip().lower()
+NATURAL = STYLE != "varied"
+
+# voice id មូលដ្ឋាន (សំឡេងពិត គ្មានកែ) — ប្រើក្នុងរបៀបធម្មតា
+BASE = {"male": "male_adult_1", "female": "female_adult_1", "unknown": "unknown_1"}
+NATURAL_IDS = ("male_adult_1", "female_adult_1", "unknown_1")
 
 # id → (gender, age, label, rate, pitch, volume, note)
 VOICES = {
@@ -63,12 +75,37 @@ def info(voice_id):
         v = VOICES["unknown_1"]
         voice_id = "unknown_1"
     gender, age, label, rate, pitch, volume, note = v
+    if NATURAL:                     # សំឡេងពិត — គ្មានកែកម្ពស់/ល្បឿន
+        rate, pitch, volume = "+0%", "+0Hz", "+0%"
+        label = {"male_adult_1": "ប្រុស · Piseth",
+                 "female_adult_1": "ស្រី · Sreymom",
+                 "unknown_1": "មិនដឹង · Piseth"}.get(voice_id, label)
+        note = "សំឡេងពិតរបស់ provider"
     return {"id": voice_id, "gender": gender, "age": age, "label": label,
             "rate": rate, "pitch": pitch, "volume": volume, "note": note}
 
 
+def normalize(voice_id):
+    """voice id ចាស់ (elderly_female_1 · girl_2 …) → voice ធម្មតាតាមភេទ
+
+    របៀបធម្មតា → សំឡេងទាំងអស់ជា Piseth/Sreymom ។ ភេទរក្សាដដែល។
+    """
+    if not NATURAL or not voice_id:
+        return voice_id
+    if voice_id == "unknown_1":
+        return "unknown_1"
+    v = VOICES.get(voice_id)
+    if not v:
+        return voice_id
+    return BASE.get(v[0], voice_id)
+
+
 def for_character(gender, age, used=None, preferred=None):
-    """ជ្រើស voice ត្រឹមត្រូវតាម ភេទ+អាយុ · ជៀសវាងសំឡេងដែលប្រើហើយ (Test I)"""
+    """ជ្រើស voice ត្រឹមត្រូវតាមភេទ (របៀបធម្មតា) ឬ ភេទ+អាយុ (របៀបចាស់)"""
+    if NATURAL:                          # សំឡេងពិត: ប្រុស → Piseth · ស្រី → Sreymom
+        if preferred and preferred in VOICES:
+            return normalize(preferred)
+        return BASE.get(gender, "unknown_1") if gender in ("male", "female") else "unknown_1"
     used = set(used or [])
     if preferred and preferred in VOICES:
         return preferred
@@ -82,4 +119,6 @@ def for_character(gender, age, used=None, preferred=None):
 
 
 def all_for_ui():
-    return [info(k) for k in VOICES]
+    """បញ្ជីសម្រាប់ dropdown — របៀបធម្មតា: ៣ (ប្រុស · ស្រី · មិនដឹង)"""
+    keys = NATURAL_IDS if NATURAL else tuple(VOICES)
+    return [info(k) for k in keys]

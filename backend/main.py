@@ -81,10 +81,14 @@ def characters(id: str = ""):
                     "voiceName": P.VOICE_LABEL.get(c, gender)})
     data = {"roles": out, "default": C.NARR, "voices": V.all_for_ui(),
             "ages": V.AGE_LABEL, "genders": V.GENDER_LABEL,
-            "limitations": [
+            "style": "natural" if V.NATURAL else "varied",
+            "limitations": ([
+                "សំឡេងធម្មតា — Piseth (ប្រុស) និង Sreymom (ស្រី) ដូចដើម · គ្មានកែ pitch/rate",
+                "ភេទមិនដែលប្តូរ — តួអង្គស្រីទាំងអស់ប្រើ Sreymom · ប្រុសទាំងអស់ប្រើ Piseth",
+            ] if V.NATURAL else [
                 "edge-tts (ឥតគិតថ្លៃ) មានសំឡេងខ្មែរតែ ២ (Piseth ប្រុស · Sreymom ស្រី) — ចាស់/ក្មេង/តួប្រុស ២ នាក់ បង្កើតដោយ rate · pitch · volume",
                 "បើកំណត់ Azure/Google/ElevenLabs ក្នុង Settings នឹងប្រើសំឡេងពិតរបស់ពួកគេ",
-            ]}
+            ])}
     if id:
         data["cast"] = ID.load_cast(STORE, id)
     return data
