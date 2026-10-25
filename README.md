@@ -198,6 +198,21 @@ video ──► diarize.py ─────► scenes.py ──► identity.py �
 - ជួរ Character ក្នុងតារាងបន្ទាត់ ជា **read-only** (គ្មាន dropdown)
 - ក្រោយ reload វីដេអូ → ទាញការចាត់សំឡេងពី SQLite ដោយស្វ័យប្រវត្តិ
 
+### ៦.៣ សំឡេងធម្មតា (v1.0.22) — Piseth / Sreymom ដូចដើម
+ចាប់ពី v1.0.22 ការបញ្ចេញសំឡេងត្រឡប់ទៅ **សំឡេងពិតរបស់ provider** វិញ៖
+
+| តួអង្គ | សំឡេង | rate/pitch/volume |
+|---|---|---|
+| ប្រុស (គ្រប់អាយុ) | **Piseth** · `male_adult_1` | 0 / 0 / 0 |
+| ស្រី (គ្រប់អាយុ) | **Sreymom** · `female_adult_1` | 0 / 0 / 0 |
+| មិនដឹង | Piseth · `unknown_1` | 0 / 0 / 0 |
+
+- គ្មានកែ pitch/rate → សំឡេងធម្មតា មិនធ្ងន់/ស្តើងសិប្បនិម្មិត
+- **ភេទមិនដែលប្តូរ** — ចាស់ស្រីនៅតែ Sreymom · ចាស់ប្រុសនៅតែ Piseth
+- dropdown ក្នុងប្រអប់ 🎭 មានតែ ៣ ជម្រើស (ប្រុស · ស្រី · មិនដឹង)
+- គម្រោងចាស់ (voice `elderly_female_1` …) → **normalize ស្វ័យប្រវត្តិ** តាមភេទ
+- ចង់ត្រឡប់របៀបចាស់ (កែ pitch/rate) → `KH_VOICE_STYLE=varied`
+
 ### ៦.២ ការពារ UI ចាស់ (v1.0.20) — ហេតុអ្វីការកែមិនបង្ហាញ
 `frontend/dist` មិនចូល git → `git pull` **មិន** ធ្វើបច្ចុប្បន្នភាព UI។ រួមជាមួយ cache របស់
 Electron/browser នេះធ្វើឱ្យ app បង្ហាញ UI ចាស់ ទោះ backend ជា v1.0.20 រួចហើយ។

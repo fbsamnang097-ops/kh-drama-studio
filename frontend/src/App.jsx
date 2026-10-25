@@ -397,10 +397,10 @@ export default function App() {
   const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
   // inline (មិនអណ្តែតលើ timeline) — ដាក់នៅខាងស្តាំ BGM ក្នុងជួរឧបករណ៍
   const expProgUI = expProg ? (
-    <div className="ml-auto flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs shrink-0"
+    <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs shrink-0"
       title={expProg.speed ? `${expProg.speed}× លឿនជាងពេលវេលាពិត` : "កំពុងចាប់ផ្តើម…"}
       style={{ background: "rgba(34,211,238,.10)", border: "1px solid rgba(52,211,153,.45)",
-               minWidth: 236, maxWidth: 340 }}>
+               minWidth: 210, maxWidth: 320 }}>
       <b style={{ color: expProg.state === "done" ? "#6ee7b7" : "#a5f3fc", whiteSpace: "nowrap" }}>
         {expProg.state === "done" ? "✅ Export ចប់" : "🎬 Export"}
       </b>

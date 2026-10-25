@@ -80,8 +80,13 @@ def voice_support_report(cfg=None):
     missing = [k for k, v in VOICES.items() if PROVIDER_VOICE[v[0]] not in ids] if ids else []
     limits = []
     if pv["provider"] == "edge":
-        limits.append("edge-tts មានសំឡេងខ្មែរ ២ ប៉ុណ្ណោះ (Piseth ប្រុស · Sreymom ស្រី) — "
-                      "ចាស់/ក្មេង/តួប្រុស ២ នាក់ បង្កើតដោយ rate · pitch · volume")
+        from .voices import NATURAL
+        if NATURAL:
+            limits.append("សំឡេងធម្មតា — edge-tts មាន ២ សំឡេងខ្មែរ (Piseth ប្រុស · Sreymom ស្រី) · "
+                          "គ្មានកែ pitch/rate (តួអង្គប្រុសទាំងអស់ = Piseth · ស្រីទាំងអស់ = Sreymom)")
+        else:
+            limits.append("edge-tts មានសំឡេងខ្មែរ ២ ប៉ុណ្ណោះ (Piseth ប្រុស · Sreymom ស្រី) — "
+                          "ចាស់/ក្មេង/តួប្រុស ២ នាក់ បង្កើតដោយ rate · pitch · volume")
     if missing:
         limits.append(f"voice id ដែលមិនមានក្នុង provider: {', '.join(missing[:4])}")
     return {"provider": pv["provider"], "verified": pv["verified"], "voices": pv["voices"],
@@ -114,12 +119,18 @@ VOICE_LABEL = {
 
 
 def voice_profile(key):
-    """voice id (male_adult_2 · elderly_female_1 …) ឬ role code (男主/老男…) → ការកំណត់សំឡេង"""
+    """voice id (male_adult_2 · elderly_female_1 …) ឬ role code (男主/老男…) → ការកំណត់សំឡេង
+
+    របៀបធម្មតា (លំនាំដើម) → rate/pitch/volume = 0 ទាំងអស់
+    → សំឡេងពិតរបស់ provider ដូចដើម (Piseth / Sreymom)។
+    """
     try:
-        from .voices import VOICES
+        from .voices import VOICES, NATURAL
         v = VOICES.get(key)
         if v:
             gender, _age, _label, rate, pitch, volume, _note = v
+            if NATURAL:
+                return (gender, "+0%", "+0Hz", "+0%"), key
             return (gender, rate, pitch, volume), key
     except Exception:
         pass
@@ -133,7 +144,14 @@ def char_profile(char):
     except ImportError:
         def _norm(x): return x
     c = _norm(char) or CHAR_DEFAULT
-    return CHAR_VOICES.get(c, CHAR_VOICES[CHAR_DEFAULT]), c
+    prof = CHAR_VOICES.get(c, CHAR_VOICES[CHAR_DEFAULT])
+    try:
+        from .voices import NATURAL
+        if NATURAL:                       # សំឡេងពិត — គ្មានកែ
+            prof = (prof[0], "+0%", "+0Hz", "+0%")
+    except Exception:
+        pass
+    return prof, c
 
 
 def _num(v):
