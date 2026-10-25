@@ -504,7 +504,7 @@ def index_page():
             '<script>window.addEventListener("load",function(){if(document.getElementById("kh-uistale"))return;'
             'var b=document.createElement("a");b.id="kh-uistale";b.href="#";'
             'b.textContent="⚠ UI ចាស់ — សូម rebuild (cd frontend && npm run build)";'
-            'b.title="frontend/dist ចាស់ជាង frontend/src · codeless: bash scripts/ui_build.sh";'
+            'b.title="frontend/dist ចាស់ជាង frontend/src · rebuild: bash scripts/ui_build.sh";'
             'b.onclick=function(e){e.preventDefault();location.reload();};'
             'b.style.cssText="position:fixed;left:50%;transform:translateX(-50%);bottom:34px;z-index:99999;"'
             '+";background:#f43f5e;color:#fff;font:700 12px sans-serif;padding:6px 14px;border-radius:999px;"'
