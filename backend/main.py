@@ -534,3 +534,4 @@ from .finish import register as _reg_finish; _reg_finish(app, STORE, ff, guard)
 
 from .progress import register as _reg_prog; _reg_prog(app, STORE, guard)
 from .appinfo import register as _reg_info; _reg_info(app)
+from .updates import register as _reg_upd; _reg_upd(app)

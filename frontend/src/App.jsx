@@ -4,6 +4,7 @@ import OverlayPanel from "./OverlayPanel.jsx";
 import CharacterPanel from "./CharacterPanel.jsx";
 import { LAYERS, initLayers, resetLayers } from "./layers.js";
 import { renderTextPng } from "./textPix.js";
+import { useUpdate, UpdateBanner, UpdatePill, UpdateBox } from "./UpdateNotice.jsx";
 
 const api = async (path, body, isForm) => {
   const r = await fetch(path, body ? { method: "POST", ...(isForm ? { body } : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }) } : undefined);
@@ -453,6 +454,9 @@ export default function App() {
   const addText = () => setSegs((s) => [...s, { id: Date.now(), start: t, end: t + 2, zh: "", km: "", char: "男主", status: "Pending", audio: "" }].sort((a, b) => a.start - b.start));
   const del = () => { setSegs((s) => s.filter((x) => !sel.has(x.id))); setSel(new Set()); };
 
+  // 🎁 ជូនដំណឹងកំណែថ្មី (ពិនិត្យ GitHub Releases តាម backend)
+  const upd = useUpdate();
+
   const B = ({ children, c = "violet", ...p }) => <button className={`btn b-${c} text-sm disabled:opacity-40`} disabled={!!busy} {...p}>{children}</button>;
 
   return (
@@ -465,8 +469,10 @@ export default function App() {
               <button key={k} disabled={!!busy} onClick={() => switchTier(k)}
                 className={`px-3 py-1.5 disabled:opacity-40 ${tier === k ? (k === "premium" ? "bg-gradient-to-r from-amber-500 to-pink-500 text-black font-semibold" : "bg-indigo-500") : "hover:bg-purple-600/20"}`}>{l}</button>))}
           </div>
+          <UpdatePill upd={upd} />
           <button className="ghost" onClick={() => setShowSet(true)}>⚙ Settings</button>
       </header>
+      <UpdateBanner upd={upd} />
     <div className="flex-1 min-h-0 grid grid-rows-[1fr_240px] gap-3 p-3" style={{ gridTemplateColumns: `clamp(240px, calc((100vh - 230px) * ${ar} + 24px), 520px) minmax(0, 1fr)` }}>
       {/* ១. Video Preview */}
       <section className="pnl pnl-pink row-span-2 p-3 pt-4 flex flex-col gap-2 min-h-0 overflow-y-auto">
@@ -610,6 +616,7 @@ function Settings({ onClose, tier }) {
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
       <div className="glass bg-[#1a1245]/95 p-5 w-[520px] max-h-[90vh] overflow-auto space-y-3" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-lg font-semibold">Settings</h2>
+        <UpdateBox />
         <div className="flex gap-2 text-sm">
           {Object.keys(tiers).map((k) => <button key={k} onClick={() => setEt(k)} className={et === k ? "neon" : "ghost"}>{k === "premium" ? "★ Premium" : "Standard"}</button>)}
           <span className="text-xs opacity-60 self-center ml-auto">{et === tier ? "កំពុងប្រើ" : "កំពុងកែ (មិនទាន់ប្រើ)"} · API Key ប្រើរួមគ្នា</span>

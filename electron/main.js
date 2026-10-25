@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, shell } = require('electron');
+const { app, BrowserWindow, dialog, shell, Notification } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -73,6 +73,39 @@ function createWindow() {
   win.on('closed', () => { win = null; });
 }
 
+// ជូនដំណឹង desktop (macOS + Windows) ពេលមានកំណែថ្មី — ចុច → បើកទំព័រទាញយក
+// (autoUpdater ខាងក្រោមធ្វើការតែ Windows · នេះធានាថា Mac ក៏ដឹងដែរ)
+function setupUpdateNotice() {
+  if (!app.isPackaged) return;
+  const seenFile = path.join(app.getPath('userData'), 'update-notified.json');
+  const seen = () => { try { return JSON.parse(fs.readFileSync(seenFile, 'utf8')); } catch (e) { return {}; } };
+  const markSeen = (v) => { try { fs.writeFileSync(seenFile, JSON.stringify({ latest: v, at: new Date().toISOString() })); } catch (e) { /* ignore */ } };
+  const check = () => {
+    http.get(URL + '/api/update', (r) => {
+      let body = '';
+      r.on('data', (d) => (body += d));
+      r.on('end', () => {
+        try {
+          const j = JSON.parse(body);
+          if (!j || !j.available || !j.latest) return;
+          if (seen().latest === j.latest) return;          // ជូនដំណឹងតែម្តងក្នុងមួយកំណែ
+          if (!Notification.isSupported()) return;
+          markSeen(j.latest);
+          const n = new Notification({
+            title: `KH Drama Studio v${j.latest} មានហើយ`,
+            body: `អ្នកកំពុងប្រើ v${j.current} — ចុចដើម្បីទាញយកកំណែថ្មី`,
+          });
+          n.on('click', () => shell.openExternal(j.url));
+          n.show();
+          log('update.log', 'notified ' + j.latest);
+        } catch (e) { log('update.log', 'notice parse failed: ' + e); }
+      });
+    }).on('error', (e) => log('update.log', 'notice check failed: ' + e));
+  };
+  check();
+  setInterval(check, 6 * 60 * 60 * 1000);
+}
+
 function setupUpdates() {
   if (!app.isPackaged || process.platform !== 'win32') return;   // Mac needs a signed app for auto-update
   autoUpdater.on('error', (e) => log('update.log', 'error: ' + ((e && e.stack) || e)));
@@ -103,6 +136,7 @@ async function start() {
   }
   if (win) win.loadURL(URL);
   setupUpdates();
+  setupUpdateNotice();
 }
 
 app.on('window-all-closed', () => app.quit());
