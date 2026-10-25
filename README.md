@@ -198,6 +198,12 @@ video ──► diarize.py ─────► scenes.py ──► identity.py �
 - ជួរ Character ក្នុងតារាងបន្ទាត់ ជា **read-only** (គ្មាន dropdown)
 - ក្រោយ reload វីដេអូ → ទាញការចាត់សំឡេងពី SQLite ដោយស្វ័យប្រវត្តិ
 
+### ៦.១ Progress ពេល Export (v1.0.19)
+- progress bar ពិត (%) បង្ហាញ **inline នៅខាងស្តាំ BGM** ក្នុងជួរឧបករណ៍ — មិនអណ្តែតលើ timeline ទៀតទេ
+- ដក progress bar ចាស់ (`index.html` global loader) ចេញសម្រាប់ `/api/export` → មិនមានបារ​ស្ទួន
+- បង្ហាញ៖ 🎬 Export · របារ · % · ETA (`~0:51`) · hover បង្ហាញល្បឿន (`1.75×`)
+- រួចរាល់ → `✅ Export ចប់` រួចបាត់ទៅវិញក្នុង ១.៥ វិនាទី
+
 ### ៧. Acceptance Tests
 ```
 $ python tests/test_dubbing.py     # Test 1–10 (server ពិត · ffmpeg ពិត · KH_TTS_STUB=1)

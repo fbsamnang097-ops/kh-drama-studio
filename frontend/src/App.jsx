@@ -395,22 +395,27 @@ export default function App() {
 
   // Progress ពិត (ពី FFmpeg) — បង្ហាញ % និង ETA ជំនួសការរង់ចាំទទេ
   const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
-  const expProgUI = expProg ? createPortal(
-    <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 28, zIndex: 60, width: 360 }}
-      className="glass bg-[#1a1245]/95 p-3 rounded-xl">
-      <div className="flex items-center justify-between text-xs mb-1.5">
-        <b>{expProg.state === "done" ? "✅ Export ចប់" : "🎬 កំពុង Export…"}</b>
-        <span style={{ color: "#a7f3d0" }}>{Math.round(expProg.percent || 0)}%</span>
-      </div>
-      <div style={{ height: 8, borderRadius: 99, background: "#ffffff22", overflow: "hidden" }}>
+  // inline (មិនអណ្តែតលើ timeline) — ដាក់នៅខាងស្តាំ BGM ក្នុងជួរឧបករណ៍
+  const expProgUI = expProg ? (
+    <div className="ml-auto flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs shrink-0"
+      title={expProg.speed ? `${expProg.speed}× លឿនជាងពេលវេលាពិត` : "កំពុងចាប់ផ្តើម…"}
+      style={{ background: "rgba(34,211,238,.10)", border: "1px solid rgba(52,211,153,.45)",
+               minWidth: 236, maxWidth: 340 }}>
+      <b style={{ color: expProg.state === "done" ? "#6ee7b7" : "#a5f3fc", whiteSpace: "nowrap" }}>
+        {expProg.state === "done" ? "✅ Export ចប់" : "🎬 Export"}
+      </b>
+      <div style={{ flex: 1, minWidth: 70, height: 7, borderRadius: 99, background: "#ffffff22", overflow: "hidden" }}>
         <div style={{ width: `${Math.max(1.5, expProg.percent || 0)}%`, height: "100%", borderRadius: 99,
           background: "linear-gradient(90deg,#22d3ee,#34d399)", transition: "width .4s ease" }} />
       </div>
-      <div className="flex justify-between text-xs opacity-70 mt-1">
-        <span>{expProg.speed ? `${expProg.speed}× លឿនជាងពេលវេជ្ជមាន` : "កំពុងចាប់ផ្តើម…"}</span>
-        <span>{expProg.eta > 1 ? `នៅសល់ ~${mmss(expProg.eta)}` : ""}</span>
-      </div>
-    </div>, document.body) : null;
+      <span style={{ color: "#a7f3d0", minWidth: 32, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+        {Math.round(expProg.percent || 0)}%
+      </span>
+      <span style={{ color: "#ffffff88", whiteSpace: "nowrap", minWidth: 54, textAlign: "right" }}>
+        {expProg.eta > 1 ? `~${mmss(expProg.eta)}` : expProg.state === "done" ? "" : "…"}
+      </span>
+    </div>
+  ) : null;
   const [bgmVol, setBgmVol] = useState(0.5);
   const bgmAud = useRef(null);
   useEffect(() => {   // Preview BGM តាមវីដេអូ (play / pause / seek)
@@ -484,7 +489,7 @@ export default function App() {
       <section className="pnl pnl-violet p-3 pt-4 flex flex-col min-h-0 min-w-0">
         <div className="flex gap-2 mb-2 flex-wrap items-center">
           <B c="violet" onClick={addText}>+ Add Text</B><B c="red" onClick={del}>Delete</B><B c="amber" onClick={findReplace}>Find &amp; Replace</B><B c="pink" onClick={scanChars}>🔍 ស្កេនតួអង្គ</B><B c="violet" onClick={() => setShowCast((v) => !v)}>🎭 តួអង្គ ({cast.length})</B>
-          <span className="text-xs opacity-70">{busy}</span>
+          {!expProg && <span className="text-xs opacity-70">{busy}</span>}
           {castMsg && <span className="text-xs" style={{ color: "#6ee7b7" }}>{castMsg}</span>}
 
         </div>
@@ -499,6 +504,7 @@ export default function App() {
             </label>
             {bgm && <button className="btn ghost text-xs" onClick={() => setBgm("")}>✕ Remove BGM</button>}
             {bgm && <label className="flex items-center gap-2 text-xs">🔊 BGM<input type="range" min="0" max="1" step="0.05" value={bgmVol} onChange={(e) => setBgmVol(+e.target.value)} className="flex-1" /></label>}
+            {expProgUI}
           </>
           <OverlayPanel video={video} layers={layers} setLayers={setLayers} boxes={blurBoxes} setBoxes={setBlurBoxes} onApply={applyFx} />
         </div>
@@ -547,7 +553,7 @@ export default function App() {
       {/* ៣. Timeline */}
       <section className="pnl pnl-teal col-start-2 p-3 pt-4 flex flex-col gap-2 min-h-0 min-w-0">
         <div className="flex gap-2 items-center text-sm">
-          <B c="cyan" onClick={translate}>Translate</B><B c="green" onClick={genAudio}>Generate Khmer Audio</B><B c="orange" onClick={() => setShowExp(true)}>Export Video</B>{expDialog}{expProgUI}
+          <B c="cyan" onClick={translate}>Translate</B><B c="green" onClick={genAudio}>Generate Khmer Audio</B><B c="orange" onClick={() => setShowExp(true)}>Export Video</B>{expDialog}
           <span className="ml-auto">Zoom</span><input type="range" min={5} max={80} value={zoom} onChange={(e) => setZoom(+e.target.value)} />
         </div>
         <Timeline {...{ bgm, segs, patch, dur, zoom, t, video, seek: (x) => { if (vref.current) vref.current.currentTime = x; } }} />
