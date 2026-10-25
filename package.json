@@ -1,11 +1,13 @@
 {
   "name": "kh-drama-studio",
-  "version": "1.0.19",
+  "version": "1.0.20",
   "description": "KH Drama Studio desktop app",
   "author": "Mr. Samnang",
   "main": "electron/main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "ui:build": "bash scripts/ui_build.sh",
+    "ui:dev": "cd frontend && npm run dev"
   },
   "dependencies": {
     "electron-updater": "^6.3.9"

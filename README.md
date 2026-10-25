@@ -198,6 +198,24 @@ video ──► diarize.py ─────► scenes.py ──► identity.py �
 - ជួរ Character ក្នុងតារាងបន្ទាត់ ជា **read-only** (គ្មាន dropdown)
 - ក្រោយ reload វីដេអូ → ទាញការចាត់សំឡេងពី SQLite ដោយស្វ័យប្រវត្តិ
 
+### ៦.២ ការពារ UI ចាស់ (v1.0.20) — ហេតុអ្វីការកែមិនបង្ហាញ
+`frontend/dist` មិនចូល git → `git pull` **មិន** ធ្វើបច្ចុប្បន្នភាព UI។ រួមជាមួយ cache របស់
+Electron/browser នេះធ្វើឱ្យ app បង្ហាញ UI ចាស់ ទោះ backend ជា v1.0.20 រួចហើយ។
+
+v1.0.20 ដោះស្រាយ ៣ ស្រទាប់៖
+1. **`/api/version`** → `ui: {built, stale, bundle, built_at}` (ធៀប mtime `dist` នឹង `src`)
+2. **`index.html` បញ្ជូនតាម backend** (មិនមែន StaticFiles) → បញ្ចូលបដា
+   `⚠ UI ចាស់ — សូម rebuild` **ទោះ bundle ខ្លួនឯងជាកំណែចាស់**
+3. **Cache headers** → `index.html`: `no-store` · `assets/*` (មាន hash): `immutable`
+   → Electron/browser មិនអាចបង្ហាញ UI ចាស់ក្រោយ update ទៀតទេ
+
+Rebuild UI ពេលរត់ពី source (ក្រោយ `git pull` ឬកែ frontend):
+```bash
+bash scripts/ui_build.sh        # ឬ: npm run ui:build   ឬ: cd frontend && npm run build
+```
+បើ backend ដើរ​ហើយ ហើយ UI ចាស់ → console បង្ហាញ `⚠ frontend/dist ចាស់ជាង frontend/src`
+ហើយក្នុង app មានបដាក្រហមខាងក្រោម — ចុច `Ctrl/Cmd + R` ក្រោយ rebuild។
+
 ### ៦.១ Progress ពេល Export (v1.0.19)
 - progress bar ពិត (%) បង្ហាញ **inline នៅខាងស្តាំ BGM** ក្នុងជួរឧបករណ៍ — មិនអណ្តែតលើ timeline ទៀតទេ
 - ដក progress bar ចាស់ (`index.html` global loader) ចេញសម្រាប់ `/api/export` → មិនមានបារ​ស្ទួន

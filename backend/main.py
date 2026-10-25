@@ -1,5 +1,6 @@
 import subprocess, uuid, pathlib, zipfile, sys, shutil, json
 from fastapi import FastAPI, UploadFile, HTTPException
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from . import providers as P
@@ -448,9 +449,76 @@ async def bgm_upload(id: str, file: UploadFile):
 def bgm_status(id: str):
     return BGM_JOBS.get(pathlib.Path(id).name, {"state": "none"})
 
+@app.middleware("http")
+async def _fresh_ui(request, call_next):
+    """ការពារ UI ចាស់៖ `index.html` មិន cache · asset មាន hash → cache បានយូរ
+
+    បើគ្មាន header នេះ Electron/Chromium អាចបង្ហាញ UI ចាស់ក្រោយ update
+    (ហេតុអ្វី progress bar ចាស់នៅតែលេចឡើងទោះបានដំឡើងកំណែថ្មីរួច)។
+    """
+    resp = await call_next(request)
+    path = request.url.path
+    if path == "/" or path.endswith(".html"):
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
+    elif path.startswith("/assets/"):
+        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return resp
+
+
 app.mount("/files", StaticFiles(directory=STORE), name="files")
-if (ROOT / "frontend/dist").exists():
-    app.mount("/", StaticFiles(directory=ROOT / "frontend/dist", html=True), name="web")
+# ព្រមាននៅ console បើ UI build ចាស់ជាងកូដ (រត់ពី source)
+try:
+    from .appinfo import ui_info as _ui_info
+    if _ui_info().get("stale"):
+        print("⚠ frontend/dist ចាស់ជាង frontend/src — UI ថ្មីមិនទាន់បង្ហាញ។ "
+              "Rebuild: cd frontend && npm install && npm run build", flush=True)
+except Exception:
+    pass
+
+DIST = ROOT / "frontend" / "dist"
+
+# index.html បញ្ជូនតាម backend (មិនមែន StaticFiles) ដើម្បី៖
+#   ១. បញ្ចូលបដា "UI ចាស់" ទោះ bundle ខ្លួនឯងជាកំណែចាស់ (ដំណើរការពី source)
+#   ២. no-store ជានិច្ច → Electron/browser មិនបង្ហាញ UI ចាស់ក្រោយ update
+if (DIST / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
+
+
+@app.get("/")
+def index_page():
+    idx = DIST / "index.html"
+    if not idx.exists():
+        raise HTTPException(
+            404, "UI មិនទាន់ build — សូមរត់: cd frontend && npm install && npm run build "
+                 "(ឬ bash scripts/ui_build.sh)")
+    html = idx.read_text(encoding="utf-8", errors="ignore")
+    ui = {}
+    try:
+        from .appinfo import ui_info
+        ui = ui_info()
+    except Exception:
+        ui = {}
+    if ui.get("stale"):
+        badge = (
+            '<script>window.addEventListener("load",function(){if(document.getElementById("kh-uistale"))return;'
+            'var b=document.createElement("a");b.id="kh-uistale";b.href="#";'
+            'b.textContent="⚠ UI ចាស់ — សូម rebuild (cd frontend && npm run build)";'
+            'b.title="frontend/dist ចាស់ជាង frontend/src · codeless: bash scripts/ui_build.sh";'
+            'b.onclick=function(e){e.preventDefault();location.reload();};'
+            'b.style.cssText="position:fixed;left:50%;transform:translateX(-50%);bottom:34px;z-index:99999;"'
+            '+";background:#f43f5e;color:#fff;font:700 12px sans-serif;padding:6px 14px;border-radius:999px;"'
+            '+";text-decoration:none;box-shadow:0 6px 20px #f43f5e66";document.body.appendChild(b);});</script>'
+        )
+        html = html.replace("</body>", badge + "</body>")
+    return HTMLResponse(html, headers={
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Pragma": "no-cache",
+    })
+
+
+if DIST.exists():
+    app.mount("/", StaticFiles(directory=DIST, html=True), name="web")
 
 from .overlay import register as _reg_overlay; _reg_overlay(app, STORE, ff, guard)
 
