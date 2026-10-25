@@ -1120,9 +1120,20 @@ background:conic-gradient(from var(--lda),transparent 0 50%,#ec4899 68%,#fbbf24 
 </script>
 <script id="kh-verjs">
 fetch("/api/version").then(function(r){return r.json()}).then(function(j){
-  var v=j.version; if(!v) return;
-  var s=document.querySelector("#kh-foot span");
-  if(s) s.textContent=s.textContent.replace("KH Drama Studio","KH Drama Studio "+(/^\d/.test(v)?"v"+v:v));
+  var v=j.version;
+  if(v){ var s=document.querySelector("#kh-foot span");
+    if(s) s.textContent=s.textContent.replace("KH Drama Studio","KH Drama Studio "+(/^\d/.test(v)?"v"+v:v)); }
+  // UI build ចាស់? → បង្ហាញបានភ្លាម (កុំឱ្យភាន់ថាកូដថ្មីមិនដំណើរការ)
+  if(j.ui&&j.ui.stale&&!document.getElementById("kh-uistale")){
+    var b=document.createElement("a"); b.id="kh-uistale";
+    b.textContent="⚠ UI ចាស់ — សូម rebuild (npm run build ក្នុង frontend/)";
+    b.title="frontend/dist ចាស់ជាង frontend/src — ចុចដើម្បីផ្ទុកឡើងវិញ";
+    b.href="#"; b.onclick=function(e){e.preventDefault();location.reload();};
+    b.style.cssText="position:fixed;left:50%;transform:translateX(-50%);bottom:32px;z-index:9999;"+
+      "background:#f43f5e;color:#fff;font:700 12px 'Noto Sans Khmer',sans-serif;padding:5px 12px;"+
+      "border-radius:999px;text-decoration:none;box-shadow:0 6px 20px #f43f5e66";
+    document.body.appendChild(b);
+  }
 }).catch(function(){});
 </script>
 </body></html>
