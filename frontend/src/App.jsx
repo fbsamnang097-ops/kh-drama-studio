@@ -503,13 +503,15 @@ export default function App() {
       <header className="flex items-center gap-4 px-4 pt-3">
         <div className="flex items-center gap-2"><span className="logo" /><b className="text-lg" style={{ fontFamily: "'Bricolage Grotesque','Noto Sans Khmer',sans-serif" }}>KH Drama Studio</b></div>
         <nav className="flex gap-1.5 mx-auto">{[["Upload", !!video], ["Transcribe", segs.length > 0], ["Translate", segs.some((s) => s.km)], ["Voice", segs.some((s) => s.audio)], ["Export", exported]].map(([l, on], i) => <span key={l} className={`step ${on ? "on" : ""}`} style={{ "--c": STEP_C[i] }}>{i + 1}. {l}</span>)}</nav>
-        <div className="flex rounded-[10px] overflow-hidden border border-purple-400/30 text-xs" title="កម្រិតគុណភាព">
+        <div className="header-actions flex items-center gap-2 ml-auto">
+          <div className="flex rounded-[10px] overflow-hidden border border-purple-400/30 text-xs" title="កម្រិតគុណភាព">
             {[["standard", "Standard"], ["premium", "★ Premium"]].map(([k, l]) => (
               <button key={k} disabled={!!busy} onClick={() => switchTier(k)}
                 className={`px-3 py-1.5 disabled:opacity-40 ${tier === k ? (k === "premium" ? "bg-gradient-to-r from-amber-500 to-pink-500 text-black font-semibold" : "bg-indigo-500") : "hover:bg-purple-600/20"}`}>{l}</button>))}
           </div>
           <UpdatePill upd={upd} />
           <button className="ghost" onClick={() => setShowSet(true)}>⚙ Settings</button>
+        </div>
       </header>
       <UpdateBanner upd={upd} />
       <nav className="mobile-view-switcher" aria-label="ផ្នែកកម្មវិធីលើទូរសព្ទ">

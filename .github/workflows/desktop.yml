@@ -146,8 +146,8 @@ jobs:
           generate_release_notes: false
           body: |
             ## អ្វីថ្មី
-            - កែអេក្រង់ទទេលើ Chrome/Safari ដោយជួសជុលកំហុស `setBoxes is not defined` ដែលធ្វើឱ្យ React render មិនបាន។
-            - បន្ថែមការគាំទ្រ Safari 13+ និងសារណែនាំផ្ទុកទំព័រឡើងវិញ បើ UI មិនចាប់ផ្ដើម។
+            - រៀប Settings ឱ្យនៅជួរតែមួយជាមួយ Standard និង Premium លើទូរសព្ទ ដោយការពារការធ្លាក់ចុះទៅជួរបន្ទាប់។
+            - បន្ថែម UI mount smoke test និងបង្កើត installer សម្រាប់ Windows និង Mac ទាំងពីរប្រភេទ។
 
             ## ទាញយក
             [ទំព័រទាញយកសម្រាប់ Windows និង Mac](https://github.com/fbsamnang097-ops/kh-drama-studio/releases/tag/${{ github.ref_name }})
