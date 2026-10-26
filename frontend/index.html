@@ -390,6 +390,52 @@ background:conic-gradient(from var(--lda),transparent 0 50%,#ec4899 68%,#fbbf24 
   .ios-install-tip button{min-width:34px;min-height:34px;border:0;border-radius:50%;background:#ffffff20;color:#fff;font-size:22px}
 }
 </style>
+<style id="mobile-workspace-layout">
+.mobile-view-switcher{display:none}
+@media(max-width:760px){
+  html,body{width:100%;height:100%!important;min-height:0!important;overflow:hidden!important}
+  body{height:100dvh!important;min-height:0!important;padding:env(safe-area-inset-top) 0 0!important;display:flex!important;flex-direction:column!important}
+  #root{width:100%;height:100%!important;min-height:0!important;flex:1 1 0!important;overflow:hidden!important;display:flex!important;flex-direction:column!important}
+  #root>.h-screen{height:auto!important;min-height:0!important;max-height:none!important;flex:1 1 0!important;overflow:hidden!important;display:flex!important;flex-direction:column!important}
+  #root>.h-screen>header{position:relative!important;top:auto!important;flex:0 0 auto!important;gap:5px!important;padding:8px 9px!important}
+  #root>.h-screen>header>div:first-child{flex:1 1 auto!important;min-width:0!important}
+  #root>.h-screen>header>div:first-child b{font-size:14px!important}
+  #root>.h-screen>header>nav:not(.mobile-view-switcher){display:none!important}
+  #root>.h-screen>header>button.ghost{margin-left:auto!important;padding:6px 8px!important;white-space:nowrap}
+  #root>.h-screen>header>div[title="កម្រិតគុណភាព"]{order:3!important;flex:1 0 100%!important;justify-content:flex-end}
+  #root>.h-screen>header>div[title="កម្រិតគុណភាព"] button{min-height:34px!important;padding:5px 10px!important}
+  #root>.h-screen>.mx-3.mt-2{flex:0 0 auto!important;max-height:16svh;overflow:auto}
+  .mobile-view-switcher{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:7px 9px;flex:0 0 auto!important;background:rgba(12,8,38,.96);border-bottom:1px solid rgba(255,255,255,.12)}
+  .mobile-view-switcher button{min-width:0;min-height:42px;padding:7px 4px;border:1px solid rgba(255,255,255,.2);border-radius:11px;background:rgba(255,255,255,.07);color:#eee7ff;font:600 13px 'Noto Sans Khmer','Noto Sans SC',sans-serif;white-space:nowrap}
+  .mobile-view-switcher button[aria-pressed="true"]{border-color:#22d3ee;background:linear-gradient(135deg,rgba(139,92,246,.5),rgba(34,211,238,.2));color:#fff;box-shadow:0 0 12px rgba(34,211,238,.18)}
+  #root>.h-screen>div.grid{display:grid!important;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(0,1fr)!important;gap:0!important;padding:7px 8px!important;flex:1 1 0!important;min-height:0!important;overflow:hidden!important}
+  #root>.h-screen>div.grid>section{display:none!important;grid-row:auto!important;grid-column:auto!important;width:100%!important;min-width:0!important;min-height:0!important;max-height:none!important;margin:0!important}
+  #root>.h-screen[data-mobile-view="preview"]>div.grid>section.pnl-pink,
+  #root>.h-screen[data-mobile-view="editor"]>div.grid>section.pnl-violet,
+  #root>.h-screen[data-mobile-view="timeline"]>div.grid>section.pnl-teal{display:flex!important;min-height:0!important;height:100%!important}
+  #root>.h-screen[data-mobile-view="preview"]>div.grid>section.pnl-pink{overflow:auto!important;padding:9px!important;gap:8px!important}
+  #root>.h-screen[data-mobile-view="preview"]>div.grid>section.pnl-pink>div.flex-1{flex:1 1 auto!important;min-height:130px!important;max-height:none!important}
+  #root>.h-screen[data-mobile-view="preview"]>div.grid>section.pnl-pink>div.relative{width:100%!important;height:min(48svh,360px)!important;max-height:360px!important;aspect-ratio:auto!important;flex:0 0 auto!important}
+  #root>.h-screen[data-mobile-view="preview"]>div.grid>section.pnl-pink video{width:100%!important;height:100%!important;object-fit:contain!important}
+  #root>.h-screen[data-mobile-view="editor"]>div.grid>section.pnl-violet{overflow:auto!important;padding:8px!important;gap:8px!important}
+  #root>.h-screen[data-mobile-view="editor"]>div.grid>section.pnl-violet>div.overflow-auto.flex-1.text-sm{flex:1 0 150px!important;min-height:150px!important;max-height:38svh!important;width:100%!important;overscroll-behavior:contain}
+  #root>.h-screen[data-mobile-view="editor"]>div.grid>section.pnl-violet>div.flex{max-width:100%;}
+  .overlay-panel{width:100%!important;max-width:none!important;max-height:none!important;height:auto!important;overflow:visible!important;padding:8px!important}
+  .overlay-controls-grid{grid-template-columns:minmax(0,1fr)!important;gap:8px!important}
+  .overlay-panel .text-xs{line-height:1.45}
+  .overlay-panel button,.overlay-panel label{max-width:100%;font-size:12px!important}
+  .overlay-panel .grid.items-center{grid-template-columns:52px minmax(0,1fr) 40px!important}
+  #root>.h-screen[data-mobile-view="timeline"]>div.grid>section.pnl-teal{overflow:hidden!important;padding:9px!important}
+  #root>.h-screen[data-mobile-view="timeline"]>div.grid>section.pnl-teal>div:first-child{flex:0 0 auto!important;flex-wrap:wrap!important;gap:6px!important}
+  #root>.h-screen[data-mobile-view="timeline"]>div.grid>section.pnl-teal>div:first-child input[type="range"]{max-width:100px}
+  #root>.h-screen[data-mobile-view="timeline"]>div.grid>section.pnl-teal>div.overflow-auto.flex-1{flex:1 1 0!important;min-height:0!important;width:100%!important;overscroll-behavior:contain}
+  #root>.ios-install-tip{position:relative!important;inset:auto!important;left:auto!important;right:auto!important;bottom:auto!important;width:auto!important;max-width:none!important;margin:5px 9px calc(6px + env(safe-area-inset-bottom))!important;flex:0 0 auto!important;padding:8px 10px!important}
+  #root>.ios-install-tip button{flex:0 0 34px}
+  #kh-foot{display:none!important}
+  #root table{min-width:720px}
+  input,textarea,select{font-size:16px!important}
+}
+</style>
 </head>
 <body><div id="root"></div>
 <footer id="kh-foot"><span>© 2026 KH Drama Studio · រក្សាសិទ្ធិគ្រប់យ៉ាង</span><span>•</span><span>Develop by <a id="kh-dev" role="button">Mr. Samnang</a></span></footer><script type="module" src="/src/main.jsx"></script><script id="ui-hdr-colors">

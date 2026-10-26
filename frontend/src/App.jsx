@@ -107,6 +107,7 @@ export default function App() {
     }).catch(() => {});
   }, [video?.id]);
   const [showSet, setShowSet] = useState(false);
+  const [mobileView, setMobileView] = useState("preview");
   const [exported, setExported] = useState(false);
   const [showSub, setShowSub] = useState(true);       // បង្ហាញ/បិទ អក្សរលើវីដេអូ (និង Export)
   const [ar, setAr] = useState(9 / 16);
@@ -485,7 +486,7 @@ export default function App() {
   const B = ({ children, c = "violet", ...p }) => <button className={`btn b-${c} text-sm disabled:opacity-40`} disabled={!!busy} {...p}>{children}</button>;
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-screen flex flex-col" data-mobile-view={mobileView}>
       <header className="flex items-center gap-4 px-4 pt-3">
         <div className="flex items-center gap-2"><span className="logo" /><b className="text-lg" style={{ fontFamily: "'Bricolage Grotesque','Noto Sans Khmer',sans-serif" }}>KH Drama Studio</b></div>
         <nav className="flex gap-1.5 mx-auto">{[["Upload", !!video], ["Transcribe", segs.length > 0], ["Translate", segs.some((s) => s.km)], ["Voice", segs.some((s) => s.audio)], ["Export", exported]].map(([l, on], i) => <span key={l} className={`step ${on ? "on" : ""}`} style={{ "--c": STEP_C[i] }}>{i + 1}. {l}</span>)}</nav>
@@ -498,6 +499,11 @@ export default function App() {
           <button className="ghost" onClick={() => setShowSet(true)}>⚙ Settings</button>
       </header>
       <UpdateBanner upd={upd} />
+      <nav className="mobile-view-switcher" aria-label="ផ្នែកកម្មវិធីលើទូរសព្ទ">
+        {[["preview", "▶ វីដេអូ"], ["editor", "✎ អក្សរ"], ["timeline", "▤ Timeline"]].map(([key, label]) => (
+          <button key={key} type="button" aria-pressed={mobileView === key} onClick={() => setMobileView(key)}>{label}</button>
+        ))}
+      </nav>
     <div className="flex-1 min-h-0 grid grid-rows-[1fr_240px] gap-3 p-3" style={{ gridTemplateColumns: `clamp(240px, calc((100vh - 230px) * ${ar} + 24px), 520px) minmax(0, 1fr)` }}>
       {/* ១. Video Preview */}
       <section className="pnl pnl-pink row-span-2 p-3 pt-4 flex flex-col gap-2 min-h-0 overflow-y-auto">
