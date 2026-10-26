@@ -134,7 +134,14 @@ async function start() {
     dialog.showErrorBox('KH Drama Studio', 'The server did not start. See: ' + path.join(app.getPath('userData'), 'backend.log'));
     return app.quit();
   }
-  if (win) win.loadURL(URL);
+  if (win) {
+    // Clear Chromium's HTTP cache before loading the local app. This prevents
+    // a Windows/macOS upgrade from reusing a cached frontend bundle from an
+    // earlier installation while the backend already reports a newer version.
+    try { await win.webContents.session.clearCache(); }
+    catch (e) { log('update.log', 'UI cache clear failed: ' + e); }
+    await win.loadURL(URL);
+  }
   setupUpdates();
   setupUpdateNotice();
 }

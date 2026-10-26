@@ -24,9 +24,9 @@ html = get(BASE + "/").decode("utf-8", "replace")
 match = re.search(r"/assets/(index-[A-Za-z0-9_-]+\.js)", html)
 assert match, "served index.html has no Vite bundle reference"
 bundle = get(BASE + match.group(0)).decode("utf-8", "replace")
-required = ("/api/segments/fix", "/api/characters/detect")
+required = ("/api/segments/fix", "/api/characters/detect", EXPECTED_VERSION)
 missing = [marker for marker in required if marker not in bundle]
-assert not missing, f"served frontend bundle is missing required current features: {missing}"
+assert not missing, f"served frontend bundle is missing current version/features: {missing}"
 assert ui.get("bundle") == match.group(1), (
     f"bundle mismatch: /api/version reports {ui.get('bundle')}, index.html serves {match.group(1)}"
 )

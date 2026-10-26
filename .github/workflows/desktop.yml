@@ -108,6 +108,9 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
+      - name: Verify UI inside the actual installer payload
+        run: python scripts/check_installer_payload.py release
+
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.name }}
