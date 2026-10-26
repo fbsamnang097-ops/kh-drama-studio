@@ -9,7 +9,9 @@ version = pathlib.Path("VERSION").read_text(encoding="utf-8").strip()
 required = ("/api/segments/fix", "/api/characters/detect", version)
 found = []
 for index in root.rglob("index.html"):
-    parts = index.as_posix().split("/")
+    # macOS app bundles use `Contents/Resources` (capital R), while Windows
+    # uses `resources`; compare normalized components so both platforms pass.
+    parts = [part.casefold() for part in index.parts]
     if "frontend" not in parts or "dist" not in parts:
         continue
     # Only inspect the backend resources copied into the actual Electron app payload.
