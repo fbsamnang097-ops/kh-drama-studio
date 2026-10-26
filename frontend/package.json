@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "ui:build": "npm run build"
+    "ui:build": "npm run build",
+    "check:ui-mount": "npm run build && node scripts/check-ui-mount.mjs"
   },
   "dependencies": {
     "react": "18.3.1",
@@ -13,7 +14,8 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "4.3.1",
+    "happy-dom": "20.14.6",
     "vite": "^5.4.21"
   },
-  "version": "1.0.37"
+  "version": "1.0.38"
 }
