@@ -223,14 +223,14 @@ $ python tests/test_dubbing.py      → 15 passed, 0 failed
 $ python tests/test_updates.py      → 16 passed, 0 failed
 ```
 
-### ៦.៦ ផ្ទៀងផ្ទាត់ UI ទាំង Windows និង Mac (v1.0.25–1.0.27)
+### ៦.៦ ផ្ទៀងផ្ទាត់ UI ទាំង Windows និង Mac (v1.0.25–1.0.28)
 
 លេខ version backend ថ្មី ប៉ុន្តែ UI ចាស់ អាចកើតពី cache ឬ installer payload មិនត្រូវគ្នា។
 
 - Electron លុប Chromium HTTP cache ពេលបើកលើ Windows/Mac; footer បង្ហាញ backend version និង `UI vX.Y.Z` ដាច់ពីគ្នា
 - `check_packaged_ui.py` ពិនិត្យ API version, bundle reference, UI build version និង feature markers
 - `check_installer_payload.py` ពិនិត្យ JS bundle ដែលចម្លងចូល app installer ពិតៗ; ទទួលបាន path casing ខុសគ្នារវាង `Resources` (Mac) និង `resources` (Windows)
-- Release workflow ត្រូវឆ្លងទាំង Windows, Mac Intel, Mac ARM ហើយពិនិត្យថាមាន installer ទាំង ៣ + `latest.yml` មុន publish; build ខូចមួយ platform គឺ **មិន publish release**
+- Release workflow ត្រូវឆ្លងទាំង Windows, Mac Intel, Mac ARM ហើយពិនិត្យថាមាន installer ទាំង ៣ + `latest.yml` មុន publish; build ខូចមួយ platform គឺ **មិន publish release**។ v1.0.27 បានបរាជ័យដោយសារ GitHub មិនអាចផ្ដល់ hosted runner សម្រាប់ macOS ARM (មិនមែនកំហុស source code) ដូច្នេះ v1.0.28 បង្កើត installers ថ្មីគ្រប់ OS ដោយរង់ចាំ matrix ទាំងមូលជោគជ័យសិន។
 
 រត់តេស្តក្នុង workflow: `python scripts/check_packaged_ui.py http://127.0.0.1:8731` និង `python scripts/check_installer_payload.py release`។
 
