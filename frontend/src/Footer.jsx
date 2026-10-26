@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 
+const UI_BUILD_VERSION = __UI_BUILD_VERSION__;
+
 export default function Footer() {
   const [v, setV] = useState("");
   const [stale, setStale] = useState(false);
@@ -19,6 +21,6 @@ export default function Footer() {
           ⚠ UI ចាស់ — rebuild
         </span>
       )}
-      {ver}© {new Date().getFullYear()} KH Drama Studio · រក្សាសិទ្ធិគ្រប់យ៉ាង
+      {ver}· UI v{UI_BUILD_VERSION} · © {new Date().getFullYear()} KH Drama Studio · រក្សាសិទ្ធិគ្រប់យ៉ាង
     </div>, document.body);
 }

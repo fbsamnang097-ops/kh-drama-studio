@@ -223,15 +223,15 @@ $ python tests/test_dubbing.py      → 15 passed, 0 failed
 $ python tests/test_updates.py      → 16 passed, 0 failed
 ```
 
-### ៦.៦ Windows Release — ត្រួតពិនិត្យ version និង UI មុន publish
+### ៦.៦ ផ្ទៀងផ្ទាត់ UI ទាំង Windows និង Mac (v1.0.25–1.0.26)
 
-Screenshot ដែលបង្ហាញ footer `v1.0.24` ប៉ុន្តែមិនមានប៊ូតុង `✂️ កាត់វេនវែង`/`🎭 តួអង្គ` បញ្ជាក់ថា backend ថ្មី និង frontend ចាស់អាចច្រឡំគ្នាបាន។ ចាប់ពី v1.0.25 តទៅ workflow `desktop.yml` ពិនិត្យ **EXE backend ដែលទើប build** ដោយ៖
+Screenshot ដែលបង្ហាញ footer version ថ្មី ប៉ុន្តែមិនមានប៊ូតុង `✂️ កាត់វេនវែង`/`🎭 តួអង្គ` បង្ហាញថា backend និង frontend អាចមិនត្រូវគ្នា។ ចាប់ពី v1.0.25 workflow `desktop.yml` ពិនិត្យ backend EXE ដែលទើប build៖ version ត្រូវគ្នា, HTML និង JS bundle ត្រូវគ្នា, និងមាន `/api/segments/fix` + `/api/characters/detect`។ ចាប់ពី v1.0.26 បន្ថែម៖
 
-- ប្រៀបធៀប `/api/version` ទៅ `VERSION` របស់ tag
-- ទាញ `/` និង JS bundle ពិតពី EXE ហើយពិនិត្យថាមាន `/api/segments/fix` និង `/api/characters/detect`
-- ប្រៀបធៀបឈ្មោះ bundle ក្នុង HTML ជាមួយ `/api/version` — ខុសមួយណា build នឹង fail មុន publish
+- លុប Chromium HTTP cache ពេលបើក app លើ **Windows និង Mac** ដើម្បីមិនឱ្យយក JS bundle ចាស់មកប្រើក្រោយ update
+- Footer បង្ហាញ version backend និង `UI vX.Y.Z` ដាច់ពីគ្នា ដើម្បីមើលឃើញបើខុសកំណែ
+- Release checker ពិនិត្យថា JS bundle មានលេខ UI version ដូច `VERSION` និងមុខងារចាំបាច់
 
-តេស្តដូចគ្នារត់ដោយ `python scripts/check_packaged_ui.py http://127.0.0.1:8731`។ ការទាញយក Windows ត្រូវជ្រើស `KH-Drama-Studio-vX.Y.Z.exe` ក្នុង Release ថ្មីបំផុត ហើយបើកពី Start Menu ក្រោយដំឡើង។
+តេស្តដូចគ្នារត់ដោយ `python scripts/check_packaged_ui.py http://127.0.0.1:8731`។ Release workflow build និងពិនិត្យ Windows, Mac Intel និង Mac Apple Silicon ទាំងអស់។
 
 ### ៦.៤ ជូនដំណឹងកំណែថ្មី (v1.0.23) — អ្នកប្រើដឹង និងទាញយកបានភ្លាម
 រាល់ពេលចេញកំណែថ្មី app **ប្រាប់អ្នកប្រើដោយខ្លួនឯង** — មិនត្រូវរង់ចាំគេសួរ។
