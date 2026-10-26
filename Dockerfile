@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg fonts-noto-core \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
+COPY VERSION ./VERSION
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend ./backend

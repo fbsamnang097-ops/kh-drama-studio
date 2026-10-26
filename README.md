@@ -234,17 +234,17 @@ $ python tests/test_updates.py      → 16 passed, 0 failed
 
 រត់តេស្តក្នុង workflow: `python scripts/check_packaged_ui.py http://127.0.0.1:8731` និង `python scripts/check_installer_payload.py release`។
 
-### ៦.៨ ដំឡើងលើ iPhone/iPad (PWA · v1.0.29–1.0.31)
+### ៦.៨ ដំឡើងលើ iPhone/iPad (PWA · v1.0.29–1.0.32)
 
 1. បើក `https://kh-drama-studio.onrender.com` ក្នុង **Safari** លើ iPhone/iPad (ត្រូវមាន internet)។
 2. ចុច **Share** (រូបការ៉េមានព្រួញឡើង) → **Add to Home Screen** → **Add**។
 3. បើករូប KH Drama Studio ពី Home Screen ដើម្បីប្រើជាបង្អួច app។ Safari បង្ហាញផ្ទាំងណែនាំដំឡើងពេលបើកលើ iPhone។
 
-PWA មាន icon, standalone display, responsive mobile layout និង video `playsinline`។ v1.0.31 បន្ថែមផ្ទាំង mobile ដាច់ដោយឡែកសម្រាប់ Video, Editor និង Timeline ដើម្បីកុំឱ្យ panel ទាំងអស់ប្រជ្រៀតគ្នាលើអេក្រង់តូច; កំណត់ app ឱ្យសមនឹង viewport, អាច scroll ផ្នែកតារាង/controls ដោយឡែក និងដាក់ការណែនាំ Install ជាផ្នែកមិនអណ្តែតលើ UI។ v1.0.30 បានកាត់ preview និងរៀប layer controls សម្រាប់ទូរសព្ទ។ Service worker cache តែ static assets។ API, project files និងការបកប្រែ/TTS នៅតែដំណើរការលើ server ដូច្នេះ **ត្រូវការ internet ហើយមិនអាចកែវីដេអូ offline បានទេ**។ Render free instance អាចភ្ញាក់យឺតពេលមិនប្រើ និងមានកម្រិតសម្រាប់វីដេអូធំ។ នេះជាការដំឡើងពី Safari មិនមែន `.ipa` ឬ App Store app ទេ។
+PWA មាន icon, standalone display, responsive mobile layout និង video `playsinline`។ v1.0.32 កែតាម screenshot ទូរសព្ទពិត៖ បង្ខំ video panel ឱ្យតម្រៀបជាជួរឈរ និងកំណត់ empty preview ឱ្យមានកម្ពស់សមរម្យ ទោះ CSS utility CDN មិនទាន់ load ក៏ដោយ; រៀប update banner ឱ្យរុំជួរបាន។ ក៏ចម្លង `VERSION` ចូល Docker runtime ដើម្បី API និង update notice បង្ហាញកំណែពិត មិនមែន `dev`។ v1.0.31 បានបន្ថែមផ្ទាំង mobile Video/Editor/Timeline ដាច់ពីគ្នា; v1.0.30 បានកាត់ preview និងរៀប layer controls។ Service worker cache តែ static assets។ API, project files និងការបកប្រែ/TTS នៅតែដំណើរការលើ server ដូច្នេះ **ត្រូវការ internet ហើយមិនអាចកែវីដេអូ offline បានទេ**។ Render free instance អាចភ្ញាក់យឺតពេលមិនប្រើ និងមានកម្រិតសម្រាប់វីដេអូធំ។ នេះជាការដំឡើងពី Safari មិនមែន `.ipa` ឬ App Store app ទេ។
 
 ### ៦.៧ Render Deployments — `VERSION` ត្រូវមានក្នុង Docker build stage
 
-Render deploys បន្ទាប់ពី v1.0.26 បរាជ័យ ព្រោះ Dockerfile ចម្លងតែ `frontend/` ទៅ build stage ខណៈ `vite.config.js` អាន `../VERSION`។ ដូច្នេះ `npm run build` ក្នុង Docker មិនរកឃើញ file នោះ។ Dockerfile ឥឡូវរក្សាទម្រង់ `VERSION` ជា sibling របស់ `frontend/`; Vite ក៏មាន fallback ទៅ `frontend/package.json` សម្រាប់ frontend-only build context។ ក្រោយ merge, Render នឹង deploy commit ថ្មី ហើយ status ថ្មីនឹងបញ្ជាក់ថាជោគជ័យ/បរាជ័យ។
+Render deploys បន្ទាប់ពី v1.0.26 បរាជ័យ ព្រោះ Dockerfile មិនចម្លង `VERSION` ទៅ build context ខណៈ `vite.config.js` អាន `../VERSION`។ Dockerfile រក្សា `VERSION` ជា sibling របស់ `frontend/` ក្នុង build stage ហើយចម្លងវាចូល runtime image ផងដែរ ដើម្បីឱ្យ `/api/version` និង update notice បង្ហាញកំណែពិត មិនមែន `dev`។ Vite មាន fallback ទៅ `frontend/package.json` សម្រាប់ frontend-only build context។ ក្រោយ merge, Render deploys commit ថ្មីដោយស្វ័យប្រវត្តិ។
 
 ### ៦.៤ ជូនដំណឹងកំណែថ្មី (v1.0.23) — អ្នកប្រើដឹង និងទាញយកបានភ្លាម
 រាល់ពេលចេញកំណែថ្មី app **ប្រាប់អ្នកប្រើដោយខ្លួនឯង** — មិនត្រូវរង់ចាំគេសួរ។
