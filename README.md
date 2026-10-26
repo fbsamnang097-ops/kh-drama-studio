@@ -234,13 +234,13 @@ $ python tests/test_updates.py      → 16 passed, 0 failed
 
 រត់តេស្តក្នុង workflow: `python scripts/check_packaged_ui.py http://127.0.0.1:8731` និង `python scripts/check_installer_payload.py release`។
 
-### ៦.៨ ដំឡើងលើ iPhone/iPad (PWA · v1.0.29–1.0.35)
+### ៦.៨ ដំឡើងលើ iPhone/iPad (PWA · v1.0.29–1.0.36)
 
 1. បើក `https://kh-drama-studio.onrender.com` ក្នុង **Safari** លើ iPhone/iPad (ត្រូវមាន internet)។
 2. ចុច **Share** (រូបការ៉េមានព្រួញឡើង) → **Add to Home Screen** → **Add**។
 3. បើករូប KH Drama Studio ពី Home Screen ដើម្បីប្រើជាបង្អួច app។ Safari បង្ហាញផ្ទាំងណែនាំដំឡើងពេលបើកលើ iPhone។
 
-PWA មាន icon, standalone display, responsive mobile layout និង video `playsinline`។ v1.0.35 រៀប Standard, Premium និង Settings ឱ្យស្ថិតក្នុងជួរតែមួយលើទូរសព្ទ; workflow steps និង footer នៅតែបង្ហាញ។ v1.0.34 បង្ហាញ workflow steps នៅ header និង footer branding (រក្សាសិទ្ធិ/Develop by) លើទូរសព្ទ ដោយមិនបាំង panel។ v1.0.33 កែផ្ទាំង Editor លើទូរសព្ទ៖ បង្ខំផ្ទាំងមេ និងក្រុម controls ឱ្យដាក់ជាជួរឈរ, រៀបប៊ូតុងសកម្មភាពជាពីរជួរឈរ, និងដាក់ Import/Export/BGM/Layer panel ជាក្រុមទទឹងពេញ មុនតារាង scroll ផ្ដេក។ v1.0.32 កែ layout iPhone ពិត និងកំណែ API ក្នុង Docker; v1.0.31 បានបន្ថែមផ្ទាំង mobile Video/Editor/Timeline ដាច់ពីគ្នា; v1.0.30 បានកាត់ preview និងរៀប layer controls។ Service worker cache តែ static assets។ API, project files និងការបកប្រែ/TTS នៅតែដំណើរការលើ server ដូច្នេះ **ត្រូវការ internet ហើយមិនអាចកែវីដេអូ offline បានទេ**។ Render free instance អាចភ្ញាក់យឺតពេលមិនប្រើ និងមានកម្រិតសម្រាប់វីដេអូធំ។ នេះជាការដំឡើងពី Safari មិនមែន `.ipa` ឬ App Store app ទេ។
+PWA មាន icon, standalone display, responsive mobile layout និង video `playsinline`។ v1.0.36 កែ Export លើ iPhone៖ បន្ទាប់ពី encode រួច បង្ហាញតំណរក្សាទុក MP4 ដែលចុចដោយដៃ ដើម្បីជៀសវាង Safari រារាំង auto-download ក្រោយ background job; បន្ថែម API attachment download ដោយឈ្មោះ file ច្បាស់។ Progress នៅជាប់ BGM ហើយ app ប្ដូរទៅ Editor ដើម្បីឱ្យឃើញ។ v1.0.35 រៀប Standard, Premium និង Settings ឱ្យស្ថិតក្នុងជួរតែមួយលើទូរសព្ទ; workflow steps និង footer នៅតែបង្ហាញ។ v1.0.34 បង្ហាញ workflow steps នៅ header និង footer branding (រក្សាសិទ្ធិ/Develop by) លើទូរសព្ទ ដោយមិនបាំង panel។ v1.0.33 កែផ្ទាំង Editor លើទូរសព្ទ៖ បង្ខំផ្ទាំងមេ និងក្រុម controls ឱ្យដាក់ជាជួរឈរ, រៀបប៊ូតុងសកម្មភាពជាពីរជួរឈរ, និងដាក់ Import/Export/BGM/Layer panel ជាក្រុមទទឹងពេញ មុនតារាង scroll ផ្ដេក។ v1.0.32 កែ layout iPhone ពិត និងកំណែ API ក្នុង Docker; v1.0.31 បានបន្ថែមផ្ទាំង mobile Video/Editor/Timeline ដាច់ពីគ្នា; v1.0.30 បានកាត់ preview និងរៀប layer controls។ Service worker cache តែ static assets។ API, project files និងការបកប្រែ/TTS នៅតែដំណើរការលើ server ដូច្នេះ **ត្រូវការ internet ហើយមិនអាចកែវីដេអូ offline បានទេ**។ Render free instance អាចភ្ញាក់យឺតពេលមិនប្រើ និងមានកម្រិតសម្រាប់វីដេអូធំ។ នេះជាការដំឡើងពី Safari មិនមែន `.ipa` ឬ App Store app ទេ។
 
 ### ៦.៧ Render Deployments — `VERSION` ត្រូវមានក្នុង Docker build stage
 

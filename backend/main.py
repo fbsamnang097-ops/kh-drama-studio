@@ -1,6 +1,6 @@
 import subprocess, uuid, pathlib, zipfile, sys, shutil, json
 from fastapi import FastAPI, UploadFile, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from . import providers as P
@@ -434,6 +434,24 @@ def export(b: Ex):
     job = PR.run_job(STORE, args, vid, dur)
     job["url"] = f"/files/{out.name}"
     return {"job": True, "encoder": E.best()}
+
+
+@app.get("/api/export_download")
+def export_download(id: str):
+    """Download completed MP4 with an attachment response for mobile Safari."""
+    vid = pathlib.Path(id).name
+    if len(vid) != 10 or any(ch not in "0123456789abcdef" for ch in vid):
+        raise HTTPException(400, "ID Export មិនត្រឹមត្រូវ")
+    out = STORE / f"{vid}_km.mp4"
+    if not out.is_file():
+        raise HTTPException(404, "មិនទាន់មាន video Export សម្រាប់គម្រោងនេះ")
+    return FileResponse(
+        out,
+        media_type="application/octet-stream",
+        filename=f"{vid}_km.mp4",
+        headers={"Cache-Control": "no-store"},
+    )
+
 
 class TE(BaseModel): segments: list[dict]; kind: str = "mp3"; bgm: str = ""   # segments: {n,start,end,zh,km,char,audio}
 @app.post("/api/tts_export")
