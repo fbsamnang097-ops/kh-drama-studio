@@ -502,7 +502,7 @@ export default function App() {
       {/* ១. Video Preview */}
       <section className="pnl pnl-pink row-span-2 p-3 pt-4 flex flex-col gap-2 min-h-0 overflow-y-auto">
         {video ? <div className="relative mx-auto bg-black rounded-xl overflow-hidden shrink-0" style={{ aspectRatio: ar, width: `min(100%, calc((100vh - 230px) * ${ar}))`, containerType: "inline-size" }}>
-          <video ref={vref} src={video.url} className="w-full h-full object-cover" onTimeUpdate={onTime} muted
+          <video ref={vref} src={video.url} className="w-full h-full object-cover" onTimeUpdate={onTime} playsInline muted
             onLoadedMetadata={(e) => { setDur(e.target.duration); if (e.target.videoWidth) { setAr(e.target.videoWidth / e.target.videoHeight); setVs({ w: e.target.videoWidth, h: e.target.videoHeight }); } }} />
           {showSub && active?.km && <div className="absolute bottom-[7%] inset-x-[4%] text-center font-semibold leading-snug [text-shadow:0_0_6px_#000,0_0_6px_#000,0_0_3px_#000]" style={{ fontSize: "clamp(12px,5cqw,30px)" }}>{active.km}</div>}
         </div>

@@ -15,5 +15,5 @@
     "@vitejs/plugin-react": "4.3.1",
     "vite": "^5.4.21"
   },
-  "version": "1.0.28"
+  "version": "1.0.29"
 }
