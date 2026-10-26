@@ -234,13 +234,13 @@ $ python tests/test_updates.py      → 16 passed, 0 failed
 
 រត់តេស្តក្នុង workflow: `python scripts/check_packaged_ui.py http://127.0.0.1:8731` និង `python scripts/check_installer_payload.py release`។
 
-### ៦.៨ ដំឡើងលើ iPhone/iPad (PWA · v1.0.29–1.0.30)
+### ៦.៨ ដំឡើងលើ iPhone/iPad (PWA · v1.0.29–1.0.31)
 
 1. បើក `https://kh-drama-studio.onrender.com` ក្នុង **Safari** លើ iPhone/iPad (ត្រូវមាន internet)។
 2. ចុច **Share** (រូបការ៉េមានព្រួញឡើង) → **Add to Home Screen** → **Add**។
 3. បើករូប KH Drama Studio ពី Home Screen ដើម្បីប្រើជាបង្អួច app។ Safari បង្ហាញផ្ទាំងណែនាំដំឡើងពេលបើកលើ iPhone។
 
-PWA មាន icon, standalone display, responsive mobile layout និង video `playsinline`។ v1.0.30 កែតាមការបង្ហាញលើ iPhone៖ preview មិនស៊ីកម្ពស់ពេក, layer controls តម្រៀបជាជួរឈរមិនឱ្យកាត់ជាយ, និងប៊ូតុងទំហំសមស្របសម្រាប់ម្រាមដៃ។ Service worker cache តែ static assets។ API, project files និងការបកប្រែ/TTS នៅតែដំណើរការលើ server ដូច្នេះ **ត្រូវការ internet ហើយមិនអាចកែវីដេអូ offline បានទេ**។ Render free instance អាចភ្ញាក់យឺតពេលមិនប្រើ និងមានកម្រិតសម្រាប់វីដេអូធំ។ នេះជាការដំឡើងពី Safari មិនមែន `.ipa` ឬ App Store app ទេ។
+PWA មាន icon, standalone display, responsive mobile layout និង video `playsinline`។ v1.0.31 បន្ថែមផ្ទាំង mobile ដាច់ដោយឡែកសម្រាប់ Video, Editor និង Timeline ដើម្បីកុំឱ្យ panel ទាំងអស់ប្រជ្រៀតគ្នាលើអេក្រង់តូច; កំណត់ app ឱ្យសមនឹង viewport, អាច scroll ផ្នែកតារាង/controls ដោយឡែក និងដាក់ការណែនាំ Install ជាផ្នែកមិនអណ្តែតលើ UI។ v1.0.30 បានកាត់ preview និងរៀប layer controls សម្រាប់ទូរសព្ទ។ Service worker cache តែ static assets។ API, project files និងការបកប្រែ/TTS នៅតែដំណើរការលើ server ដូច្នេះ **ត្រូវការ internet ហើយមិនអាចកែវីដេអូ offline បានទេ**។ Render free instance អាចភ្ញាក់យឺតពេលមិនប្រើ និងមានកម្រិតសម្រាប់វីដេអូធំ។ នេះជាការដំឡើងពី Safari មិនមែន `.ipa` ឬ App Store app ទេ។
 
 ### ៦.៧ Render Deployments — `VERSION` ត្រូវមានក្នុង Docker build stage
 
