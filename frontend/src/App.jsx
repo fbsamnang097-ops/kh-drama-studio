@@ -557,7 +557,7 @@ export default function App() {
             {expProgUI}
             {exportResult && <a className="btn b-green text-xs mobile-export-download" href={`/api/export_download?id=${encodeURIComponent(exportResult.id)}`} download={exportResult.filename}>⬇️ រក្សាទុកវីដេអូ MP4</a>}
           </div>
-          <OverlayPanel video={video} layers={layers} setLayers={setLayers} boxes={blurBoxes} setBoxes={setBoxes} onApply={applyFx} />
+          <OverlayPanel video={video} layers={layers} setLayers={setLayers} boxes={blurBoxes} setBoxes={setBlurBoxes} onApply={applyFx} />
         </div>
         <div className="overflow-auto flex-1 text-sm">
           {showCast && (

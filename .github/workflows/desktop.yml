@@ -39,11 +39,11 @@ jobs:
           test "v$V" = "$GITHUB_REF_NAME"
           test "$(node -p "require('./package.json').version")" = "$V"
 
-      - name: Build frontend
+      - name: Build and smoke-test frontend mount
         run: |
           cd frontend
-          npm install
-          npm run build
+          npm ci
+          npm run check:ui-mount
 
       - name: Install Node dependencies
         run: npm install
@@ -146,8 +146,8 @@ jobs:
           generate_release_notes: false
           body: |
             ## អ្វីថ្មី
-            - កែអេក្រង់ទទេលើ iPhone ដោយធានាថា JavaScript អាចដំណើរការលើ Safari 13+។
-            - បន្ថែមសារណែនាំ និងប៊ូតុងផ្ទុកឡើងវិញ ប្រសិនបើ UI មិនចាប់ផ្ដើម។
+            - កែអេក្រង់ទទេលើ Chrome/Safari ដោយជួសជុលកំហុស `setBoxes is not defined` ដែលធ្វើឱ្យ React render មិនបាន។
+            - បន្ថែមការគាំទ្រ Safari 13+ និងសារណែនាំផ្ទុកទំព័រឡើងវិញ បើ UI មិនចាប់ផ្ដើម។
 
             ## ទាញយក
-            [ទំព័រទាញយកសម្រាប់ Windows និង Mac](https://github.com/fbsamnang097-ops/kh-drama-studio/releases/tag/v1.0.37)
+            [ទំព័រទាញយកសម្រាប់ Windows និង Mac](https://github.com/fbsamnang097-ops/kh-drama-studio/releases/tag/${{ github.ref_name }})
