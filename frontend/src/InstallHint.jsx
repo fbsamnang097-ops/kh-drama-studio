@@ -25,7 +25,7 @@ export default function InstallHint() {
   return (
     <aside className="ios-install-tip" role="note" aria-label="ដំឡើង KH Drama Studio លើ iPhone">
       <span className="ios-install-tip-icon" aria-hidden="true">＋</span>
-      <span><b>ដំឡើងលើ iPhone</b><small>ចុច Share ⬆ → Add to Home Screen</small></span>
+      <span><b>ការណែនាំដំឡើង iPhone</b><small>ក្នុង Safari ចុច Share ⬆ → Add to Home Screen</small></span>
       <button type="button" onClick={dismiss} aria-label="បិទ">×</button>
     </aside>
   );

@@ -351,16 +351,35 @@ background:conic-gradient(from var(--lda),transparent 0 50%,#ec4899 68%,#fbbf24 
   #root>*{height:auto!important;max-height:none!important;min-height:100svh!important;overflow:visible!important}
   #root>.h-screen{height:auto!important;min-height:100svh!important;overflow:visible!important;display:flex!important;flex-direction:column!important}
   #root>.h-screen>header{position:sticky;top:0;z-index:80;flex-wrap:wrap;gap:6px!important;padding:8px 10px!important;background:linear-gradient(90deg,rgba(236,72,153,.96),rgba(99,102,241,.96))!important;backdrop-filter:blur(12px)}
-  #root>.h-screen>header>nav{order:5;flex:1 0 100%;width:100%;margin:0!important;justify-content:flex-start;overflow-x:auto;scrollbar-width:none}
+  #root>.h-screen>header>div:first-child{order:0;flex:1 1 auto;min-width:0}
+  #root>.h-screen>header>div:first-child b{font-size:15px!important;white-space:nowrap}
+  #root>.h-screen>header>nav{order:2;flex:1 0 100%;width:100%;margin:0!important;justify-content:flex-start;overflow-x:auto;scrollbar-width:none}
+  #kh-vslink{display:none!important}
+  #root>.h-screen>header>div[title="កម្រិតគុណភាព"]{order:3;font-size:11px!important}
+  #root>.h-screen>header>button.ghost{order:1;margin-left:auto;font-size:12px!important;padding:6px 9px!important}
+  #root>.h-screen>header button{font-size:12px!important;padding:6px 9px!important}
+  #root>.h-screen>header .step{flex:none}
   #root>.h-screen>header>nav .step{white-space:nowrap;font-size:10px;padding:3px 8px}
   #root>.h-screen>header .logo{width:24px;height:24px;flex:none}
   #root>.h-screen>header button{min-height:38px}
   #root>.h-screen>div.grid{display:flex!important;flex-direction:column!important;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:none!important;min-height:0!important;overflow:visible!important;padding:8px!important;gap:10px!important}
   #root>.h-screen>div.grid>section{width:100%;min-width:0;grid-row:auto!important;grid-column:auto!important;overflow:visible!important}
-  #root>.h-screen>div.grid>section.pnl-pink{min-height:240px;max-height:60svh;padding:10px!important}
-  #root>.h-screen>div.grid>section.pnl-violet{min-height:55svh;padding:10px!important}
-  #root>.h-screen>div.grid>section.pnl-violet>div.overflow-auto.flex-1.text-sm{min-height:220px;max-height:58svh}
-  #root>.h-screen>div.grid>section.pnl-teal{height:210px;min-height:210px;padding:10px!important}
+  #root>.h-screen>div.grid>section.pnl-pink{min-height:0!important;max-height:none!important;height:auto!important;padding:8px!important}
+  #root>.h-screen>div.grid>section.pnl-pink>div.flex-1{height:150px!important;min-height:140px!important;max-height:150px!important;flex:0 0 150px!important}
+  #root>.h-screen>div.grid>section.pnl-pink>div.relative{width:100%!important;height:min(38svh,280px)!important;max-height:280px!important;aspect-ratio:auto!important}
+  #root>.h-screen>div.grid>section.pnl-pink video{width:100%;height:100%;object-fit:contain}
+  #root>.h-screen>div.grid>section.pnl-violet{min-height:0!important;padding:8px!important}
+  #root>.h-screen>div.grid>section.pnl-violet>div.overflow-auto.flex-1.text-sm{min-height:220px;max-height:55svh}
+  #root>.h-screen>div.grid>section.pnl-violet>div.flex{gap:5px!important}
+  #root>.h-screen>div.grid>section.pnl-violet>div.flex button{font-size:12px!important;padding:7px 8px!important}
+  .overlay-panel{max-width:none!important;max-height:none!important;height:auto!important;overflow:visible!important;padding:8px!important}
+  .overlay-controls-grid{grid-template-columns:minmax(0,1fr)!important;gap:8px!important}
+  .overlay-panel .text-xs{line-height:1.45}
+  .overlay-panel button,.overlay-panel label{max-width:100%;font-size:12px!important}
+  .overlay-panel .grid.items-center{grid-template-columns:52px minmax(0,1fr) 40px!important}
+  #root>.h-screen>div.grid>section.pnl-teal{height:200px;min-height:200px;padding:8px!important}
+  #root>.h-screen>div.grid>section.pnl-teal>div.flex{flex-wrap:wrap;gap:5px!important}
+  #root>.h-screen>div.grid>section.pnl-teal>div.flex button{font-size:11px!important;padding:6px 8px!important}
   #root>.h-screen>div.grid button,#root>.h-screen>div.grid label.btn{min-height:40px}
   #root table{min-width:720px}
   input,textarea,select{font-size:16px!important}

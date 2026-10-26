@@ -76,7 +76,7 @@ export default function OverlayPanel({ video, layers: st, setLayers: setSt, boxe
   const cur = LAYERS.find((L) => L.k === tab), s = st[tab], isText = tab === "text";
   const onCount = LAYERS.filter((L) => st[L.k].on).length + (boxes.length ? 1 : 0);
   return (
-    <div className="rounded-xl p-2 text-sm shrink-0 w-full overflow-auto" style={{
+    <div className="overlay-panel rounded-xl p-2 text-sm shrink-0 w-full overflow-auto" style={{
       maxWidth: 900, maxHeight: 300, background: "rgba(255,255,255,.04)", border: `1px solid ${CYAN}66`, boxShadow: "0 0 14px rgba(34,211,238,.15)" }}>
       <div className="text-xs opacity-80 mb-1.5">
         🎬 Logo · Sponsor · Overlay · Khmer Text · Blur — <b style={{ color: GOLD }}>បញ្ចូលក្នុង Export ស្វ័យប្រវត្តិ</b> (មិនត្រូវ Apply ដោយឡែកទេ)
@@ -100,7 +100,7 @@ export default function OverlayPanel({ video, layers: st, setLayers: setSt, boxe
         )}
       </div>
 
-      <div className={blurTab ? "hidden" : "grid gap-x-4"} style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)" }}>
+      <div className={`overlay-controls-grid ${blurTab ? "hidden" : "grid gap-x-4"}`} style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)" }}>
         <div className="space-y-1.5 min-w-0">
           {isText ? (
             <>
