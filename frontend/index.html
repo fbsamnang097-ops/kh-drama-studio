@@ -462,8 +462,25 @@ background:conic-gradient(from var(--lda),transparent 0 50%,#ec4899 68%,#fbbf24 
   input,textarea,select{font-size:16px!important}
 }
 </style>
+<style id="kh-boot-fallback-css">
+#kh-boot-fallback{position:fixed;z-index:9999;left:16px;right:16px;top:50%;transform:translateY(-50%);max-width:520px;margin:auto;padding:20px;border:1px solid rgba(255,255,255,.24);border-radius:18px;background:rgba(20,12,55,.96);box-shadow:0 18px 60px rgba(0,0,0,.55);color:#fff;text-align:center;line-height:1.65}
+#kh-boot-fallback[hidden]{display:none!important}
+#kh-boot-fallback button{margin-top:12px;border:0;border-radius:10px;padding:9px 16px;background:linear-gradient(135deg,#8b5cf6,#06b6d4);color:#fff;font:inherit;font-weight:700;cursor:pointer}
+</style>
 </head>
 <body><div id="root"></div>
+<div id="kh-boot-fallback" role="alert" hidden><strong>កម្មវិធីមិនទាន់បង្ហាញទេ</strong><br>សូមបើកទំព័រនេះក្នុង Safari កំណែថ្មី រួចព្យាយាមផ្ទុកឡើងវិញ។ បើបញ្ហានៅតែមាន សូមផ្ញើរូបថតអេក្រង់នេះមកក្រុមជំនួយ។<br><button type="button" onclick="location.reload()">ព្យាយាមផ្ទុកឡើងវិញ</button></div>
+<script id="kh-boot-fallback-js">
+(function(){
+  var root=document.getElementById("root"), box=document.getElementById("kh-boot-fallback");
+  if(!root||!box||typeof MutationObserver==="undefined") return;
+  var timer=setTimeout(function(){ if(!root.children.length) box.hidden=false; },10000);
+  var observer=new MutationObserver(function(){
+    if(root.children.length){ box.hidden=true; clearTimeout(timer); observer.disconnect(); }
+  });
+  observer.observe(root,{childList:true});
+})();
+</script>
 <footer id="kh-foot"><span>© 2026 KH Drama Studio · រក្សាសិទ្ធិគ្រប់យ៉ាង</span><span>•</span><span>Develop by <a id="kh-dev" role="button">Mr. Samnang</a></span></footer><script type="module" src="/src/main.jsx"></script><script id="ui-hdr-colors">
 (function(){
   var L=["#","Start","End","\u4e2d\u6587","\u1781\u17d2\u1798\u17c2\u179a","Character","Voice"];
