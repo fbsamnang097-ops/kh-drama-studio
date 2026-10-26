@@ -1,4 +1,9 @@
-<!doctype html><html lang="km"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<!doctype html><html lang="km"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#8b5cf6"/><meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-title" content="KH Drama"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<link rel="manifest" href="/manifest.json"/><link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"/>
 <title>KH Drama Studio AI</title>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700;800&family=Noto+Sans+Khmer:wght@400;600&family=Noto+Sans+SC&display=swap" rel="stylesheet"/>
 <script src="https://cdn.tailwindcss.com"></script>
@@ -336,6 +341,35 @@ background:conic-gradient(from var(--lda),transparent 0 50%,#ec4899 68%,#fbbf24 
 <style id="kh-ld5-css">
 #kh-ld.above{padding:4px 12px!important;gap:8px!important}
 #kh-ld.above .sp{width:20px!important;height:20px!important}
+</style>
+<style id="ios-pwa-mobile">
+.ios-install-tip{display:none}
+@media(max-width:760px){
+  html,body{height:auto!important;min-height:100%!important;overflow-x:hidden!important;overflow-y:auto!important}
+  body{min-height:100svh!important;display:flex!important;flex-direction:column!important;padding-top:env(safe-area-inset-top)}
+  #root{flex:1 0 auto!important;min-height:0!important;height:auto!important;overflow:visible!important}
+  #root>*{height:auto!important;max-height:none!important;min-height:100svh!important;overflow:visible!important}
+  #root>.h-screen{height:auto!important;min-height:100svh!important;overflow:visible!important;display:flex!important;flex-direction:column!important}
+  #root>.h-screen>header{position:sticky;top:0;z-index:80;flex-wrap:wrap;gap:6px!important;padding:8px 10px!important;background:linear-gradient(90deg,rgba(236,72,153,.96),rgba(99,102,241,.96))!important;backdrop-filter:blur(12px)}
+  #root>.h-screen>header>nav{order:5;flex:1 0 100%;width:100%;margin:0!important;justify-content:flex-start;overflow-x:auto;scrollbar-width:none}
+  #root>.h-screen>header>nav .step{white-space:nowrap;font-size:10px;padding:3px 8px}
+  #root>.h-screen>header .logo{width:24px;height:24px;flex:none}
+  #root>.h-screen>header button{min-height:38px}
+  #root>.h-screen>div.grid{display:flex!important;flex-direction:column!important;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:none!important;min-height:0!important;overflow:visible!important;padding:8px!important;gap:10px!important}
+  #root>.h-screen>div.grid>section{width:100%;min-width:0;grid-row:auto!important;grid-column:auto!important;overflow:visible!important}
+  #root>.h-screen>div.grid>section.pnl-pink{min-height:240px;max-height:60svh;padding:10px!important}
+  #root>.h-screen>div.grid>section.pnl-violet{min-height:55svh;padding:10px!important}
+  #root>.h-screen>div.grid>section.pnl-violet>div.overflow-auto.flex-1.text-sm{min-height:220px;max-height:58svh}
+  #root>.h-screen>div.grid>section.pnl-teal{height:210px;min-height:210px;padding:10px!important}
+  #root>.h-screen>div.grid button,#root>.h-screen>div.grid label.btn{min-height:40px}
+  #root table{min-width:720px}
+  input,textarea,select{font-size:16px!important}
+  #kh-foot{height:auto;min-height:28px;flex-wrap:wrap;padding:4px 8px calc(4px + env(safe-area-inset-bottom));gap:5px;font-size:10px}
+  .ios-install-tip{position:fixed;display:flex;align-items:center;min-height:0!important;height:auto!important;max-height:none!important;flex:0 0 auto!important;gap:10px;left:10px;right:10px;bottom:calc(38px + env(safe-area-inset-bottom));z-index:10000;padding:10px 12px;border-radius:14px;color:#fff;background:rgba(27,17,66,.96);border:1px solid rgba(255,255,255,.25);box-shadow:0 8px 32px #0008;backdrop-filter:blur(16px);font:13px/1.35 'Noto Sans Khmer',sans-serif}
+  .ios-install-tip>span:nth-child(2){display:flex;flex-direction:column;flex:1}.ios-install-tip small{opacity:.83;margin-top:3px}
+  .ios-install-tip-icon{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(135deg,#ec4899,#8b5cf6,#06b6d4);font-size:22px}
+  .ios-install-tip button{min-width:34px;min-height:34px;border:0;border-radius:50%;background:#ffffff20;color:#fff;font-size:22px}
+}
 </style>
 </head>
 <body><div id="root"></div>

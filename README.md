@@ -234,6 +234,14 @@ $ python tests/test_updates.py      → 16 passed, 0 failed
 
 រត់តេស្តក្នុង workflow: `python scripts/check_packaged_ui.py http://127.0.0.1:8731` និង `python scripts/check_installer_payload.py release`។
 
+### ៦.៨ ដំឡើងលើ iPhone/iPad (PWA · v1.0.29)
+
+1. បើក `https://kh-drama-studio.onrender.com` ក្នុង **Safari** លើ iPhone/iPad (ត្រូវមាន internet)។
+2. ចុច **Share** (រូបការ៉េមានព្រួញឡើង) → **Add to Home Screen** → **Add**។
+3. បើករូប KH Drama Studio ពី Home Screen ដើម្បីប្រើជាបង្អួច app។ Safari បង្ហាញផ្ទាំងណែនាំដំឡើងពេលបើកលើ iPhone។
+
+PWA មាន icon, standalone display, responsive layout, service worker សម្រាប់ static assets និង video `playsinline`។ API, project files និងការបកប្រែ/TTS នៅតែដំណើរការលើ server ដូច្នេះ **ត្រូវការ internet ហើយមិនអាចកែវីដេអូ offline បានទេ**។ Render free instance អាចភ្ញាក់យឺតពេលមិនប្រើ និងមានកម្រិតសម្រាប់វីដេអូធំ។ នេះជាការដំឡើងពី Safari មិនមែន `.ipa` ឬ App Store app ទេ។
+
 ### ៦.៧ Render Deployments — `VERSION` ត្រូវមានក្នុង Docker build stage
 
 Render deploys បន្ទាប់ពី v1.0.26 បរាជ័យ ព្រោះ Dockerfile ចម្លងតែ `frontend/` ទៅ build stage ខណៈ `vite.config.js` អាន `../VERSION`។ ដូច្នេះ `npm run build` ក្នុង Docker មិនរកឃើញ file នោះ។ Dockerfile ឥឡូវរក្សាទម្រង់ `VERSION` ជា sibling របស់ `frontend/`; Vite ក៏មាន fallback ទៅ `frontend/package.json` សម្រាប់ frontend-only build context។ ក្រោយ merge, Render នឹង deploy commit ថ្មី ហើយ status ថ្មីនឹងបញ្ជាក់ថាជោគជ័យ/បរាជ័យ។
