@@ -28,7 +28,8 @@ const CHAR_LABEL = Object.fromEntries(CHARS.map(([k, l]) => [k, l]));
 const CC = (c) => CHAR_COLOR[c] || "#a78bfa";   // ពណ៌តាមតួអង្គ
 const STEP_C = ["#f472b6", "#fb923c", "#fbbf24", "#34d399", "#22d3ee"];
 const wrapText = (ctx, text, maxW) => {
-  const parts = typeof Intl !== "undefined" && Intl.Segmenter ? [...new Intl.Segmenter("km", { granularity: "word" }).segment(text)].map((x) => x.segment) : text.split(/(?<=\s)/);
+  // កុំប្រើ regex lookbehind ព្រោះ Safari iOS ចាស់ parse bundle មិនបាន ហើយ React មិនអាចចាប់ផ្ដើម។
+  const parts = typeof Intl !== "undefined" && Intl.Segmenter ? [...new Intl.Segmenter("km", { granularity: "word" }).segment(text)].map((x) => x.segment) : (text.match(/\S+\s*|\s+/g) || []);
   const lines = []; let cur = "";
   for (const w of parts) { const t = cur + w; if (cur && ctx.measureText(t.trimEnd()).width > maxW) { lines.push(cur.trimEnd()); cur = w.trimStart(); } else cur = t; }
   if (cur.trim()) lines.push(cur.trimEnd());

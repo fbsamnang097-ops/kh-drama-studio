@@ -143,4 +143,11 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: out/*
-          generate_release_notes: true
+          generate_release_notes: false
+          body: |
+            ## អ្វីថ្មី
+            - កែអេក្រង់ទទេលើ iPhone ដោយធានាថា JavaScript អាចដំណើរការលើ Safari 13+។
+            - បន្ថែមសារណែនាំ និងប៊ូតុងផ្ទុកឡើងវិញ ប្រសិនបើ UI មិនចាប់ផ្ដើម។
+
+            ## ទាញយក
+            [ទំព័រទាញយកសម្រាប់ Windows និង Mac](https://github.com/fbsamnang097-ops/kh-drama-studio/releases/tag/v1.0.37)

@@ -17,6 +17,9 @@ export default defineConfig({
   plugins: [react()],
   define: { __UI_BUILD_VERSION__: JSON.stringify(UI_BUILD_VERSION) },
   build: {
+    // Safari iOS ចាស់ៗនៅតែមានលើ PWA ដែលដំឡើងពី Home Screen។
+    // បម្លែង JavaScript syntax ដើម្បីឱ្យ bundle អាច parse បានចាប់ពី Safari 13។
+    target: "safari13",
     outDir: "dist",
     emptyOutDir: true
   },
