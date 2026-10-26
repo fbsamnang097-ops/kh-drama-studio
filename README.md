@@ -234,6 +234,10 @@ $ python tests/test_updates.py      → 16 passed, 0 failed
 
 រត់តេស្តក្នុង workflow: `python scripts/check_packaged_ui.py http://127.0.0.1:8731` និង `python scripts/check_installer_payload.py release`។
 
+### ៦.៧ Render Deployments — `VERSION` ត្រូវមានក្នុង Docker build stage
+
+Render deploys បន្ទាប់ពី v1.0.26 បរាជ័យ ព្រោះ Dockerfile ចម្លងតែ `frontend/` ទៅ build stage ខណៈ `vite.config.js` អាន `../VERSION`។ ដូច្នេះ `npm run build` ក្នុង Docker មិនរកឃើញ file នោះ។ Dockerfile ឥឡូវរក្សាទម្រង់ `VERSION` ជា sibling របស់ `frontend/`; Vite ក៏មាន fallback ទៅ `frontend/package.json` សម្រាប់ frontend-only build context។ ក្រោយ merge, Render នឹង deploy commit ថ្មី ហើយ status ថ្មីនឹងបញ្ជាក់ថាជោគជ័យ/បរាជ័យ។
+
 ### ៦.៤ ជូនដំណឹងកំណែថ្មី (v1.0.23) — អ្នកប្រើដឹង និងទាញយកបានភ្លាម
 រាល់ពេលចេញកំណែថ្មី app **ប្រាប់អ្នកប្រើដោយខ្លួនឯង** — មិនត្រូវរង់ចាំគេសួរ។
 

@@ -1,5 +1,8 @@
 FROM node:20-slim AS web
-WORKDIR /w
+# Keep the root VERSION beside frontend/ because vite.config.js reads ../VERSION.
+WORKDIR /app
+COPY VERSION ./VERSION
+WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install
 COPY frontend/ ./
@@ -13,6 +16,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend ./backend
-COPY --from=web /w/dist ./frontend/dist
+COPY --from=web /app/frontend/dist ./frontend/dist
 ENV PYTHONPATH=.
 CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
