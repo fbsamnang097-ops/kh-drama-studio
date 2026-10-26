@@ -13,6 +13,9 @@ const api = async (path, body, isForm) => {
   return j;
 };
 const tc = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${(s % 60).toFixed(1).padStart(4, "0")}`;
+const isIOSBrowser = () => typeof navigator !== "undefined" &&
+  (/iPad|iPhone|iPod/.test(navigator.userAgent || "") ||
+   (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
 // តួអង្គ ៧ ប្រភេទ → សំឡេងខុសៗគ្នា (ស្រី = ស្រី · ប្រុស = ប្រុស · ចាស់ · ក្មេង)
 const CHARS = [
   ["男主", "👨 ប្រុស", "#38bdf8"], ["女主", "👩 ស្រី", "#f472b6"],
@@ -304,6 +307,7 @@ export default function App() {
   const [expQ, setExpQ] = useState("hd");
   const [expFast, setExpFast] = useState(true);      // ⚡ លឿនបំផុត (veryfast + crf ខ្ពស់បន្តិច)
   const [expProg, setExpProg] = useState(null);      // {percent, eta, speed, state}
+  const [exportResult, setExportResult] = useState(null); // {id, filename} — iOS needs a deliberate file-save tap
   const [encInfo, setEncInfo] = useState(null);      // {encoder, hardware, label}
   useEffect(() => { if (showExp) api("/api/encoder").then(setEncInfo).catch(() => {}); }, [showExp]);
   const saveRef = useRef(null);
@@ -320,6 +324,12 @@ export default function App() {
     if (h) {
       try { const blob = await (await fetch(url)).blob(); const w = await h.createWritable(); await w.write(blob); await w.close(); return; }
       catch (e) { console.error("Save failed:", e); }
+    }
+    if (isIOSBrowser()) {
+      // iOS Safari often ignores a programmatic download click after a long export job.
+      // Show a normal same-origin attachment link so the user can tap it directly.
+      setExportResult({ id: video.id, filename: `${video.id}_km.mp4` });
+      return;
     }
     const a = document.createElement("a"); a.href = url; a.download = "video_km.mp4"; document.body.appendChild(a); a.click(); a.remove();
   };
@@ -398,6 +408,8 @@ export default function App() {
   });
 
   const exportV = run("កំពុង Export...", async () => {
+    setExportResult(null);
+    if (window.matchMedia?.("(max-width:760px)").matches) setMobileView("editor");
     let pngs = [], blank = "";
     if (showSub) ({ pngs, blank } = await renderSubs(segs, vs.w, vs.h));
     const [ly, bx] = [await layerPayload(), blurPayload()];   // Logo/Sponsor/Overlay/Text + Blur ក្នុង Export តែមួយ
@@ -534,7 +546,7 @@ export default function App() {
           <IOGroup label="STT" color="#fb923c" formats={[["srt", "SRT"], ["txt", "TXT"], ["json", "JSON"]]} accept=".srt,.json" disabled={!segs.length} busy={busy} onExport={(f) => exportText("zh", f)} onImport={importStt} />
           <IOGroup label="Translate" color="#fbbf24" formats={[["srt", "SRT"], ["txt", "TXT"], ["json", "JSON"]]} accept=".srt,.txt,.json" disabled={!segs.some((s) => s.km)} busy={busy} onExport={(f) => exportText("km", f)} onImport={importTr} />
           <IOGroup label="TTS" color="#34d399" formats={[["mp3", "MP3 track"], ["zip", "ZIP clips"]]} accept=".zip,.mp3,.wav,.m4a,.ogg,.aac,.flac,audio/*" multiple disabled={!segs.some((s) => s.audio)} busy={busy} onExport={exportTts} onImport={importTts} />
-          <>
+          <div className="bgm-export-row flex items-center gap-2 flex-wrap">
             <label className="btn btn-block text-sm cursor-pointer" style={{ background: "#fbbf24", color: "#000" }}>
               🎵 {bgm ? "Change BGM" : "Upload BGM"}
               <input type="file" hidden accept="audio/*,video/*,.mp3,.wav,.m4a,.ogg,.aac,.flac,.mp4,.mov,.mkv,.webm" disabled={!video} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) uploadBgm(f); }} />
@@ -542,8 +554,9 @@ export default function App() {
             {bgm && <button className="btn ghost text-xs" onClick={() => setBgm("")}>✕ Remove BGM</button>}
             {bgm && <label className="flex items-center gap-2 text-xs">🔊 BGM<input type="range" min="0" max="1" step="0.05" value={bgmVol} onChange={(e) => setBgmVol(+e.target.value)} className="flex-1" /></label>}
             {expProgUI}
-          </>
-          <OverlayPanel video={video} layers={layers} setLayers={setLayers} boxes={blurBoxes} setBoxes={setBlurBoxes} onApply={applyFx} />
+            {exportResult && <a className="btn b-green text-xs mobile-export-download" href={`/api/export_download?id=${encodeURIComponent(exportResult.id)}`} download={exportResult.filename}>⬇️ រក្សាទុកវីដេអូ MP4</a>}
+          </div>
+          <OverlayPanel video={video} layers={layers} setLayers={setLayers} boxes={blurBoxes} setBoxes={setBoxes} onApply={applyFx} />
         </div>
         <div className="overflow-auto flex-1 text-sm">
           {showCast && (
