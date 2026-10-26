@@ -353,10 +353,13 @@ background:conic-gradient(from var(--lda),transparent 0 50%,#ec4899 68%,#fbbf24 
   #root>.h-screen>header{position:sticky;top:0;z-index:80;flex-wrap:wrap;gap:6px!important;padding:8px 10px!important;background:linear-gradient(90deg,rgba(236,72,153,.96),rgba(99,102,241,.96))!important;backdrop-filter:blur(12px)}
   #root>.h-screen>header>div:first-child{order:0;flex:1 1 auto;min-width:0}
   #root>.h-screen>header>div:first-child b{font-size:15px!important;white-space:nowrap}
-  #root>.h-screen>header>nav{order:2;flex:1 0 100%;width:100%;margin:0!important;justify-content:flex-start;overflow-x:auto;scrollbar-width:none}
+  #root>.h-screen>header>nav{order:1;flex:1 0 100%;width:100%;margin:0!important;justify-content:flex-start;overflow-x:auto;scrollbar-width:none}
+  #root>.h-screen>header>.header-actions{order:2;display:flex!important;flex:1 1 100%;width:100%;min-width:0;align-items:center;gap:6px!important}
+  #root>.h-screen>header>.header-actions>div[title="កម្រិតគុណភាព"]{display:flex!important;flex:1 1 0%;min-width:0;font-size:11px!important}
+  #root>.h-screen>header>.header-actions>div[title="កម្រិតគុណភាព"] button{flex:1 1 0%;min-width:0;white-space:nowrap;padding:5px 7px!important}
+  #root>.h-screen>header>.header-actions>button.ghost{flex:0 0 auto;margin-left:auto;font-size:12px!important;padding:6px 9px!important;white-space:nowrap}
+  #root>.h-screen>header>.header-actions>a.btn{display:inline-flex;flex:0 0 auto}
   #kh-vslink{display:none!important}
-  #root>.h-screen>header>div[title="កម្រិតគុណភាព"]{order:3;font-size:11px!important}
-  #root>.h-screen>header>button.ghost{order:1;margin-left:auto;font-size:12px!important;padding:6px 9px!important}
   #root>.h-screen>header button{font-size:12px!important;padding:6px 9px!important}
   #root>.h-screen>header .step{flex:none}
   #root>.h-screen>header>nav .step{white-space:nowrap;font-size:10px;padding:3px 8px}
@@ -400,14 +403,15 @@ background:conic-gradient(from var(--lda),transparent 0 50%,#ec4899 68%,#fbbf24 
   #root>.h-screen>header{position:relative!important;top:auto!important;flex:0 0 auto!important;gap:5px!important;padding:8px 9px!important}
   #root>.h-screen>header>div:first-child{order:0!important;flex:0 0 100%!important;min-width:0!important}
   #root>.h-screen>header>div:first-child b{font-size:14px!important}
-  #root>.h-screen>header>div[title="កម្រិតគុណភាព"]{order:1!important;display:flex!important;flex:1 1 auto!important;min-width:0!important;justify-content:flex-start!important}
-  #root>.h-screen>header>div[title="កម្រិតគុណភាព"] button{flex:1 1 auto!important;min-width:0!important;min-height:38px!important;padding:5px 7px!important;font-size:11px!important;white-space:nowrap!important}
-  #root>.h-screen>header>button.ghost{order:2!important;flex:0 0 auto!important;margin-left:auto!important;padding:6px 8px!important;min-height:38px!important;white-space:nowrap}
   #root>.h-screen>header>a.btn{display:none!important}
-  #root>.h-screen>header>nav:not(.mobile-view-switcher){display:flex!important;order:3!important;flex:0 0 100%!important;width:100%!important;min-width:0!important;flex-wrap:nowrap!important;justify-content:flex-start!important;gap:5px!important;margin:0!important;overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:none!important}
+  #root>.h-screen>header>nav:not(.mobile-view-switcher){display:flex!important;order:1!important;flex:0 0 100%!important;width:100%!important;min-width:0!important;flex-wrap:nowrap!important;justify-content:flex-start!important;gap:5px!important;margin:0!important;overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:none!important}
   #root>.h-screen>header>nav:not(.mobile-view-switcher)::-webkit-scrollbar{display:none!important}
   #root>.h-screen>header>nav:not(.mobile-view-switcher) .step{flex:0 0 auto!important;white-space:nowrap!important;font-size:10px!important;padding:4px 7px!important}
-  @media(max-width:360px){#root>.h-screen>header>div[title="កម្រិតគុណភាព"] button{font-size:10px!important;padding:4px 5px!important}#root>.h-screen>header>button.ghost{font-size:11px!important;padding:5px 6px!important}}
+  #root>.h-screen>header>.header-actions{order:2!important;display:flex!important;flex:0 0 100%!important;width:100%!important;min-width:0!important;flex-wrap:nowrap!important;align-items:center!important;gap:6px!important}
+  #root>.h-screen>header>.header-actions>div[title="កម្រិតគុណភាព"]{display:flex!important;flex:1 1 0%!important;min-width:0!important;max-width:none!important}
+  #root>.h-screen>header>.header-actions>div[title="កម្រិតគុណភាព"] button{flex:1 1 0%!important;min-width:0!important;white-space:nowrap!important}
+  #root>.h-screen>header>.header-actions>button.ghost{flex:0 0 auto!important;margin-left:auto!important;white-space:nowrap!important}
+  @media(max-width:360px){#root>.h-screen>header>.header-actions>div[title="កម្រិតគុណភាព"] button{font-size:10px!important;padding:4px 5px!important}#root>.h-screen>header>.header-actions>button.ghost{font-size:11px!important;padding:5px 6px!important}}
   #root>.h-screen>.mx-3.mt-2{flex:0 0 auto!important;max-height:16svh;overflow:auto}
   #root>.h-screen>.mx-3.mt-2>div:first-child{display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:7px!important;line-height:1.5!important}
   #root>.h-screen>.mx-3.mt-2>div:first-child>span.ml-auto{display:flex!important;flex:1 1 100%!important;flex-wrap:wrap!important;justify-content:flex-start!important;margin-left:0!important;gap:6px!important}
