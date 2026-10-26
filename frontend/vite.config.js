@@ -1,10 +1,17 @@
 import { defineConfig } from "vite"; import react from "@vitejs/plugin-react";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 // Embed the actual source version into the React bundle; the footer can then
-// distinguish a current backend with a stale frontend bundle.
-const UI_BUILD_VERSION = readFileSync(fileURLToPath(new URL("../VERSION", import.meta.url)), "utf8").trim();
+// distinguish a current backend with a stale frontend bundle. Docker and
+// frontend-only build contexts may omit the root VERSION, so fall back to the
+// frontend package version there.
+const rootVersion = fileURLToPath(new URL("../VERSION", import.meta.url));
+const packageJson = fileURLToPath(new URL("./package.json", import.meta.url));
+const UI_BUILD_VERSION = existsSync(rootVersion)
+  ? readFileSync(rootVersion, "utf8").trim()
+  : JSON.parse(readFileSync(packageJson, "utf8")).version;
+if (!UI_BUILD_VERSION) throw new Error("Cannot determine UI build version");
 
 export default defineConfig({
   plugins: [react()],
