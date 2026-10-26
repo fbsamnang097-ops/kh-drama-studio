@@ -123,13 +123,23 @@ jobs:
 
   release:
     needs: build
-    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/v') }}
+    # Never publish a partial release: every matrix platform must build and upload successfully.
+    if: ${{ success() && startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: out
           merge-multiple: true
+      - name: Verify complete cross-platform release assets
+        shell: bash
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          test -s "out/KH-Drama-Studio-v${V}.exe"
+          test -s "out/KH-Drama-Studio-v${V}-x64.dmg"
+          test -s "out/KH-Drama-Studio-v${V}-arm64.dmg"
+          test -s out/latest.yml
+          printf 'RELEASE_ASSETS_OK v%s: Windows + Mac Intel + Mac ARM\n' "$V"
       - uses: softprops/action-gh-release@v2
         with:
           files: out/*
