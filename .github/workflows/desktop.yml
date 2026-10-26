@@ -99,6 +99,8 @@ jobs:
           echo
           if [ "$ok" != "1" ]; then cat backend.log; exit 1; fi
           PATH="$PWD/bin:$PATH" ffmpeg -version | head -1
+          # Ensure the packaged EXE serves both the tagged backend version and the current frontend.
+          python scripts/check_packaged_ui.py http://127.0.0.1:8731
           if [ "$RUNNER_OS" = "Windows" ]; then taskkill //F //IM kh-server.exe //T || true; else pkill -f kh-server || true; fi
 
       - name: Build installer

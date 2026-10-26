@@ -223,6 +223,16 @@ $ python tests/test_dubbing.py      → 15 passed, 0 failed
 $ python tests/test_updates.py      → 16 passed, 0 failed
 ```
 
+### ៦.៦ Windows Release — ត្រួតពិនិត្យ version និង UI មុន publish
+
+Screenshot ដែលបង្ហាញ footer `v1.0.24` ប៉ុន្តែមិនមានប៊ូតុង `✂️ កាត់វេនវែង`/`🎭 តួអង្គ` បញ្ជាក់ថា backend ថ្មី និង frontend ចាស់អាចច្រឡំគ្នាបាន។ ចាប់ពី v1.0.25 តទៅ workflow `desktop.yml` ពិនិត្យ **EXE backend ដែលទើប build** ដោយ៖
+
+- ប្រៀបធៀប `/api/version` ទៅ `VERSION` របស់ tag
+- ទាញ `/` និង JS bundle ពិតពី EXE ហើយពិនិត្យថាមាន `/api/segments/fix` និង `/api/characters/detect`
+- ប្រៀបធៀបឈ្មោះ bundle ក្នុង HTML ជាមួយ `/api/version` — ខុសមួយណា build នឹង fail មុន publish
+
+តេស្តដូចគ្នារត់ដោយ `python scripts/check_packaged_ui.py http://127.0.0.1:8731`។ ការទាញយក Windows ត្រូវជ្រើស `KH-Drama-Studio-vX.Y.Z.exe` ក្នុង Release ថ្មីបំផុត ហើយបើកពី Start Menu ក្រោយដំឡើង។
+
 ### ៦.៤ ជូនដំណឹងកំណែថ្មី (v1.0.23) — អ្នកប្រើដឹង និងទាញយកបានភ្លាម
 រាល់ពេលចេញកំណែថ្មី app **ប្រាប់អ្នកប្រើដោយខ្លួនឯង** — មិនត្រូវរង់ចាំគេសួរ។
 
@@ -506,17 +516,17 @@ cd frontend && npm install && npm run build && cd ..
 
 ## ទាញយកកម្មវិធី (មិនបាច់ដំឡើង Python)
 
-ទាញយកពីទំព័រ [Releases](https://github.com/fbsamnang097-ops/kh-drama-studio/releases)៖
+ទាញយកពីទំព័រ [Releases](https://github.com/fbsamnang097-ops/kh-drama-studio/releases) — ជ្រើស Release ថ្មីបំផុត៖
 
-| ប្រព័ន្ធ | File |
-|---------|------|
-| Windows | `kh-drama-studio.exe` |
-| Mac Intel | `KH-Drama-Studio-mac-intel.zip` |
-| Mac Apple Silicon (M1 / M2 / M3 / M4) | `KH-Drama-Studio-mac-arm64.zip` |
+| ប្រព័ន្ធ | File ត្រូវទាញយក |
+|---------|------------------|
+| Windows 10/11 (x64) | `KH-Drama-Studio-vX.Y.Z.exe` (installer) |
+| Mac Intel | `KH-Drama-Studio-vX.Y.Z-x64.dmg` |
+| Mac Apple Silicon (M1 / M2 / M3 / M4) | `KH-Drama-Studio-vX.Y.Z-arm64.dmg` |
+
+**Windows៖** ទាញយកតែ `.exe` ឈ្មោះមាន version ច្បាស់ (កុំទាញ `.blockmap` ឬ `latest.yml`) → រត់ installer → បើកកម្មវិធីពី Start Menu។ កុំយក exe ចាស់ដែលបានរក្សាទុកក្នុង Downloads ឬ shortcut ចាស់លើ taskbar។ ប្រសិនបើ app ចាស់នៅបើក សូមបិទទាំងអស់ ហើយដំឡើង installer ថ្មីម្ដងទៀត។ ទិន្នន័យគម្រោង/ការកំណត់ស្ថិតនៅ `%APPDATA%\\KHDramaStudio` ហើយការលុប app មិនត្រូវលុប folder នេះទេ។
 
 ដឹងថា Mac ជាប្រភេទណា៖ ម៉ឺនុយ Apple → About This Mac → មើល Chip (Apple M... ឬ Intel)។
-
-**Windows៖** ចុចពីរដងលើ `.exe`។ បើឃើញ "Windows protected your PC" ចុច **More info → Run anyway** (កម្មវិធីមិនទាន់មាន certificate បង់ប្រាក់)។ បង្អួចខ្មៅនឹងបើក ហើយ browser បើកដោយស្វ័យប្រវត្តិ។ បិទបង្អួចខ្មៅដើម្បីបញ្ចប់កម្មវិធី។
 
 **Mac៖** Unzip រួច **right-click លើ file → Open → Open** (ត្រូវធ្វើតែលើកដំបូង)។ បើ Mac និយាយថា file "damaged" ឬមិនបើក សូមរត់ក្នុង Terminal៖ `xattr -dr com.apple.quarantine ~/Downloads/KH-Drama-Studio-mac-arm64` ហើយ `chmod +x ~/Downloads/KH-Drama-Studio-mac-arm64` (ប្តូរឈ្មោះ file តាម Mac របស់អ្នក) រួចរត់ `~/Downloads/KH-Drama-Studio-mac-arm64`។
 
