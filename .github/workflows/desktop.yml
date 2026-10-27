@@ -147,7 +147,7 @@ jobs:
           generate_release_notes: false
           body: |
             ## អ្វីថ្មី
-            - កែការតភ្ជាប់ Gemini API ដោយប្រើ native generateContent endpoint ដើម្បីដោះស្រាយកំហុស 404; key ត្រូវបានផ្ញើតាម header មិនដាក់ក្នុង URL។
+            - កែ Gemini ទៅ Interactions API និងម៉ូឌែល gemini-3.8-flash; បម្លែងការកំណត់ gemini-2.5-flash ចាស់ដោយស្វ័យប្រវត្តិ និងរក្សា key ក្នុង header។
             - បន្ថែមជ្រើសសំឡេង ហើយចុច «អនុវត្តទាំងអស់» នៅខាងស្តាំ Find & Replace ដើម្បីដាក់សំឡេងដែលបានជ្រើសទៅ Character ទាំងអស់។
             - ពេលប្តូរសំឡេង ប្រព័ន្ធលុបសំឡេងចាស់សម្រាប់តួអង្គដែលបានប្តូរ។ រក្សា Settings ជាមួយ Standard/Premium លើទូរសព្ទ និង installer Windows/Mac។
 
