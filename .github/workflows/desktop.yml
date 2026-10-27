@@ -4,12 +4,24 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      target:
+        description: "ជ្រើស platform សម្រាប់ build ដោយដៃ"
+        type: choice
+        required: true
+        default: mac-arm
+        options:
+          - mac-arm
+          - windows
+          - mac-intel
+          - all
 
 permissions:
   contents: write
 
 jobs:
   build:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == matrix.name }}
     strategy:
       fail-fast: false
       matrix:
