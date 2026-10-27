@@ -281,9 +281,15 @@ export default function App() {
     try {
       const r = await api("/api/characters/assign", { id: video.id, project: video.id, overrides: { [cid]: vid } });
       setCast(r.characters || []);
-      if (cast.find((c) => c.id === cid)?.voice !== vid) {
-        setSegs((cur) => cur.map((s) => s.char_id === cid ? { ...s, audio: "", status: s.km ? "Pending" : s.status } : s));
-      }
+      const idMap = r.id_map || {};
+      const actualCid = idMap[cid] || cid;
+      const voiceChanged = cast.find((c) => c.id === cid)?.voice !== vid;
+      setSegs((cur) => cur.map((s) => {
+        const mappedCid = idMap[s.char_id] || s.char_id;
+        if (s.char_id !== cid && mappedCid !== actualCid) return mappedCid !== s.char_id ? { ...s, char_id: mappedCid } : s;
+        return { ...s, char_id: mappedCid,
+          ...(voiceChanged ? { audio: "", status: s.km ? "Pending" : s.status } : {}) };
+      }));
     } catch (e) { alert(e.message); }
   };
   const applyVoiceToAll = runWith("កំពុងអនុវត្តសំឡេងទៅគ្រប់តួអង្គ...", async () => {
@@ -298,9 +304,13 @@ export default function App() {
     const overrides = Object.fromEntries(targets.map((c) => [c.id, applyAllVoice]));
     const r = await api("/api/characters/assign", { id: video.id, project: video.id, overrides });
     setCast(r.characters || []);
-    setSegs((cur) => cur.map((s) => changedIds.has(s.char_id)
-      ? { ...s, audio: "", status: s.km ? "Pending" : s.status }
-      : s));
+    const idMap = r.id_map || {};
+    setSegs((cur) => cur.map((s) => {
+      const char_id = idMap[s.char_id] || s.char_id;
+      const changed = changedIds.has(s.char_id) || changedIds.has(char_id);
+      if (!changed && char_id === s.char_id) return s;
+      return { ...s, char_id, ...(changed ? { audio: "", status: s.km ? "Pending" : s.status } : {}) };
+    }));
     setCastMsg(`✅ បានអនុវត្តសំឡេង ${voiceLabel} ទៅតួអង្គទាំង ${targets.length} នាក់។ បង្កើតសំឡេងឡើងវិញដោយចុច Generate Khmer Audio។`);
   });
   const previewVoice = async (vid) => {

@@ -137,8 +137,10 @@ def resolve(lines, audio=None, video_id="", voicebook=None, previous=None,
         if any(r["a_gender"] == other and r["a_conf"] >= AUDIO_MIN for r in narration_rows):
             genders.append(other)
         for g in genders:
-            nid = "narrator" if g == major else "narrator_2"
-            nm = ("អ្នកនិទាន" if nid == "narrator"
+            primary_narrator = g == major
+            preferred_id = "narrator" if primary_narrator else "narrator_2"
+            nid = R.project_character_id(con, pid, preferred_id) if con is not None and pid else preferred_id
+            nm = ("អ្នកនិទាន" if primary_narrator
                   else ("អ្នកនិទាន · ស្រី" if g == "female" else "អ្នកនិទាន · ប្រុស"))
             ch = {"id": nid, "name": nm, "gender": g, "age": "adult", "role": C.NARR,
                   "kind": "narrator", "cluster": None, "conf": 0.9, "lines": 0,
@@ -154,7 +156,7 @@ def resolve(lines, audio=None, video_id="", voicebook=None, previous=None,
                 old = next((c for c in R.characters(con, pid) if c.get("id") == nid), None)
                 keep = bool(old and old.get("assignment") == "manual"
                             and V.info(old.get("voice") or "").get("gender") in ("unknown", "", g))
-                R.upsert_character(con, pid, ch, keep_voice=keep)
+                R.ensure_project_character(con, pid, ch, keep_voice=keep)
         narrator_id = narr_ids[major]
         for r in narration_rows:
             g = r["a_gender"] if (r["a_conf"] >= AUDIO_MIN and r["a_gender"] in narr_ids) else major
@@ -313,8 +315,8 @@ def resolve(lines, audio=None, video_id="", voicebook=None, previous=None,
         }
         characters.append(char)
         if con is not None and pid:
-            R.upsert_character(con, pid, {**char, "fp_f0": fp_f0, "fp_zcr": fp_zcr},
-                               keep_voice=not reassign)
+            R.ensure_project_character(con, pid, {**char, "fp_f0": fp_f0, "fp_zcr": fp_zcr},
+                                        keep_voice=not reassign)
 
     # ---- ជំហាន ២.៥៖ ការពារភេទ (gender guard) ----
     # បើសំឡេងរបស់បន្ទាត់ខ្លួនឯងបញ្ជាក់ភេទ **ផ្ទុយ** នឹងភេទរបស់ cluster (cluster ច្រឡំ
@@ -337,7 +339,7 @@ def resolve(lines, audio=None, video_id="", voicebook=None, previous=None,
               "color": COLOR_POOL[len(characters) % len(COLOR_POOL)], "evidence": "audio"}
         characters.append(ch)
         if con is not None and pid:
-            R.upsert_character(con, pid, ch, keep_voice=False)
+            R.ensure_project_character(con, pid, ch, keep_voice=False)
         return ch
 
     for r in dialogue_rows:
@@ -369,7 +371,7 @@ def resolve(lines, audio=None, video_id="", voicebook=None, previous=None,
                     target["name"] = target.get("name") or r["name"]
             if not target:
                 if not unknown_id:
-                    unknown_id = "u1"
+                    unknown_id = R.project_character_id(con, pid, "u1") if con is not None and pid else "u1"
                     u = {
                         "id": unknown_id, "name": "មិនទាន់ដឹង", "gender": "unknown",
                         "age": "unknown", "role": "unknown", "kind": "unknown",
@@ -380,7 +382,7 @@ def resolve(lines, audio=None, video_id="", voicebook=None, previous=None,
                     }
                     characters.append(u)
                     if con is not None and pid:
-                        R.upsert_character(con, pid, u)
+                        R.ensure_project_character(con, pid, u)
                 target = next(c for c in characters if c["id"] == unknown_id)
             target["lines"] += 1
             r["char_id"] = target["id"]
@@ -395,8 +397,8 @@ def resolve(lines, audio=None, video_id="", voicebook=None, previous=None,
         elif r["cluster"] is not None and r["cluster"] in by_cluster:
             cid = by_cluster[r["cluster"]]
         else:
-            cid = next((c["id"] for c in characters if c["id"] == "u1"),
-                       characters[-1]["id"] if characters else "u1")
+            unknown = next((c["id"] for c in characters if c.get("kind") == "unknown"), None)
+            cid = unknown or (characters[-1]["id"] if characters else "u1")
         ch = next((c for c in characters if c["id"] == cid), None)
         # ភាពជឿជាក់បញ្ចូល
         aconf = 0.0
@@ -456,9 +458,12 @@ def _next_id(characters, con=None, pid=None):
     if con is not None and pid:
         used |= {c["id"] for c in R.characters(con, pid)}
     i = 1
-    while f"c{i}" in used:
+    while True:
+        cid = f"c{i}"
+        owner = R.character_id_owner(con, cid) if con is not None else None
+        if cid not in used and owner in (None, pid):
+            return cid
         i += 1
-    return f"c{i}"
 
 
 def _role_code(gender, age):

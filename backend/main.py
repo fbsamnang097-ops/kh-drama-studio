@@ -181,11 +181,29 @@ def characters_assign(b: AssignIn):
             changed_voice_ids = []
             current_chars = {c["id"]: c for c in RG.characters(con, pid)}
             provider = P.voice_support_report()["provider"]
+            cached = ID.load_cast(STORE, pathlib.Path(b.id).name) or {}
+            cached_chars = {c.get("id"): c for c in cached.get("characters", []) if c.get("id")}
+            id_map, overrides = {}, {}
+            # ផ្ទៀងផ្ទាត់ ID និង voice មុន restore ដើម្បីកុំឱ្យ request មិនត្រឹមត្រូវកែ DB មួយផ្នែក។
             for cid, vid in (b.overrides or {}).items():
                 if vid not in V.VOICES:
                     raise HTTPException(400, f"សំឡេងមិនស្គាល់: {vid}")
+                if cid not in current_chars and cid not in cached_chars:
+                    raise HTTPException(404, f"រកមិនឃើញតួអង្គ: {cid}")
+            # កែសង្គ្រោះ cast ចាស់ដែលមានក្នុង JSON តែបាត់ពី registry (ឧ. narrator ជាន់ ID គម្រោងផ្សេង)។
+            for cid, vid in (b.overrides or {}).items():
+                target = cid
+                if target not in current_chars and cid in cached_chars:
+                    target = RG.ensure_project_character(con, pid, cached_chars[cid])
+                    current_chars = {c["id"]: c for c in RG.characters(con, pid)}
+                    if target != cid:
+                        id_map[cid] = target
+                overrides[target] = vid
+            # ផ្ទៀងផ្ទាត់ទាំងអស់មុនកែ ដើម្បីកុំឱ្យ Apply All បានលទ្ធផលតែពាក់កណ្ដាល។
+            for cid in overrides:
                 if cid not in current_chars:
                     raise HTTPException(404, f"រកមិនឃើញតួអង្គ: {cid}")
+            for cid, vid in overrides.items():
                 if current_chars[cid].get("voice") != vid:
                     changed_voice_ids.append(cid)
                 RG.set_voice(con, cid, vid, provider=provider, manual=True)
@@ -209,8 +227,19 @@ def characters_assign(b: AssignIn):
             if rows:
                 RG.save_segments(con, pid, rows)
             RG.clear_character_segment_audio(con, pid, changed_voice_ids)
-            return {"ok": True, "characters": RG.characters(con, pid),
-                    "overrides": {c["id"]: c["voice"] for c in RG.characters(con, pid)
+            result_chars = RG.characters(con, pid)
+            if id_map and cached:
+                by_id = {c["id"]: c for c in result_chars}
+                for c in cached.get("characters", []):
+                    c["id"] = id_map.get(c.get("id"), c.get("id"))
+                    saved = by_id.get(c["id"])
+                    if saved:
+                        c.update({k: saved.get(k) for k in ("voice", "assignment", "manual", "voice_provider")})
+                for item in cached.get("items", []):
+                    item["char_id"] = id_map.get(item.get("char_id"), item.get("char_id"))
+                ID.save_cast(STORE, pathlib.Path(b.id).name, cached)
+            return {"ok": True, "characters": result_chars, "id_map": id_map,
+                    "overrides": {c["id"]: c["voice"] for c in result_chars
                                   if c.get("assignment") == "manual"}}
         finally:
             con.close()
