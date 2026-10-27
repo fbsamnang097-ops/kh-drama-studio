@@ -1,4 +1,13 @@
 // Mirror backend/subs.py:schedule_voice_clips for synchronized preview and timeline timing.
+export function voiceAtTime(schedule, currentTime, isPlaying = true) {
+  if (!isPlaying) return null;
+  return schedule.find((item) => currentTime >= item.start && currentTime < item.end) || null;
+}
+
+export function sourceOffsetAt(item, currentTime) {
+  return Math.max(0, (currentTime - item.start) * item.tempo);
+}
+
 export function scheduleVoices(rows) {
   const ordered = rows.map((segment, index) => ({ segment, index }))
     .filter(({ segment }) => segment.audio)
