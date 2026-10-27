@@ -56,7 +56,7 @@ Web app សម្រាប់ Upload វីដេអូ → Transcribe (ចិ�
 - Python 3.10+ (សាកល្បងជាមួយ 3.12)
 - Node.js 18+ (សម្រាប់ build frontend)
 - FFmpeg (ត្រូវនៅក្នុង PATH)
-- ជម្រើស: `demucs` សម្រាប់ដកសំដីចេញពី BGM (ធ្ងន់ បើគ្មានវា app ប្រើ filter ffmpeg ធម្មតាជំនួស)
+- ជម្រើស: `demucs` សម្រាប់ដកសំដីចេញពី BGM; ប្រព័ន្ធកំណត់ពេលដំណើរការក្រោម ២ នាទី និងមាន fast fallback បើ Demucs យឺតពេក (លទ្ធផល fallback អាចមិនស្អាតដូច Demucs)
 
 ### macOS
 

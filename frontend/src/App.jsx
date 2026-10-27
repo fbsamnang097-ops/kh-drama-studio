@@ -551,12 +551,18 @@ export default function App() {
     const r = await api("/api/bgm?id=" + video.id, fd, true);
     if (r && r.warning) alert(r.warning);
     if (r.url) { setBgm(r.url + "?v=" + Date.now()); return; }
-    for (;;) {   // រង់ចាំ Demucs ដកសំដី (background job)
+    const started = Date.now();
+    for (;;) {   // រង់ចាំ Demucs; មាន deadline មិនលើស ២ នាទី
       await new Promise((ok) => setTimeout(ok, 700));
       const j = await api("/api/bgm_status?id=" + video.id);
-      if (j.state === "done") { setBgm(j.url + "?v=" + Date.now()); return; }
+      if (j.phase) setBusy(j.phase);
+      if (j.state === "done") {
+        if (j.warning) alert(j.warning);
+        setBgm(j.url + "?v=" + Date.now()); return;
+      }
       if (j.state === "error") throw new Error(j.error || "BGM បរាជ័យ");
       if (j.state === "none") throw new Error("Job បាត់ (server restart?) សូម upload ម្តងទៀត");
+      if (Date.now() - started >= 120000) throw new Error("ការដកសំដីលើស ២ នាទី។ សូមសាកម្ដងទៀតជាមួយ BGM ខ្លីជាង។");
     }
   });
   const findReplace = () => { const a = prompt("ស្វែងរក:"); if (!a) return; const b = prompt("ជំនួសដោយ:") ?? ""; setSegs((s) => s.map((x) => ({ ...x, km: x.km.split(a).join(b) }))); };

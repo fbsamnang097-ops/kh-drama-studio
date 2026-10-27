@@ -1,4 +1,4 @@
-import subprocess, uuid, pathlib, zipfile, sys, shutil, json
+import subprocess, uuid, pathlib, zipfile, sys, shutil, json, os, time
 from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -512,6 +512,44 @@ async def tts_import(files: list[UploadFile]):
     return out
 
 BGM_JOBS = {}
+BGM_MAX_SECONDS = 118  # ទុកចន្លោះសុវត្ថិភាពមុនដែន ២ នាទីរបស់ UI
+
+
+def _bgm_ff(timeout, *args):
+    if timeout <= 0:
+        raise subprocess.TimeoutExpired("ffmpeg", timeout)
+    result = subprocess.run(
+        ["ffmpeg", "-y", "-hide_banner", "-nostats", "-loglevel", "error", *args],
+        capture_output=True, text=True, cwd=STORE, timeout=timeout,
+    )
+    if result.returncode:
+        raise RuntimeError("FFmpeg: " + (result.stderr or "")[-1000:])
+
+
+def _bgm_channels(path):
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
+             "stream=channels", "-of", "csv=p=0", str(path)],
+            capture_output=True, text=True, timeout=5,
+        )
+        return int(result.stdout.strip().splitlines()[0]) if result.returncode == 0 and result.stdout.strip() else 2
+    except (OSError, ValueError, IndexError, subprocess.TimeoutExpired):
+        return 2
+
+
+def _demucs_command(model, wav, sep):
+    return [sys.executable, "-m", "demucs", "-n", model, "--two-stems=vocals",
+            "--shifts", "0", "--overlap", "0.1", "-o", str(sep), str(wav)]
+
+
+def _quick_bgm_filter(channels):
+    if channels > 1:
+        # Center-cancel is near-instant for stereo mixes; centered vocals cancel out.
+        return "pan=stereo|c0=0.5*FL-0.5*FR|c1=0.5*FR-0.5*FL"
+    # Mono cannot be center-cancelled, so gently attenuate the main speech range instead.
+    return "equalizer=f=1000:t=q:w=1.2:g=-8,equalizer=f=2500:t=q:w=1.2:g=-10"
+
 
 def _bgm(n):
     """ទទួលឈ្មោះ ឬ URL → ឈ្មោះ file ក្នុង storage (ឬ None បើមិនមាន)"""
@@ -536,28 +574,62 @@ async def bgm_upload(id: str, file: UploadFile):
         raise HTTPException(400, "BGM ត្រូវជា mp3 / wav / m4a / ogg / aac / flac / mp4 / mov / mkv / webm")
     if BGM_JOBS.get(vid, {}).get("state") == "running":
         raise HTTPException(409, "កំពុងដំណើរការ BGM មុន សូមរង់ចាំ")
-    BGM_JOBS[vid] = {"state": "running"}
+    BGM_JOBS[vid] = {"state": "running", "phase": "កំពុងរៀបចំសំឡេង…"}
     def job():
+        started = time.monotonic()
+        deadline = started + BGM_MAX_SECONDS
         tmp, wav, name = f"{vid}_bgm_src{ext}", f"{vid}_bgm_src.wav", f"{vid}_bgm.mp3"
+        source, wav_path = STORE / tmp, STORE / wav
         sep = STORE / f"{vid}_sep"
         try:
-            (STORE / tmp).write_bytes(data)
-            ff("-i", tmp, "-vn", "-ac", "2", "-ar", "44100", wav)
-            import os as _os
-            model = _os.environ.get("KH_DEMUCS_MODEL", "htdemucs")
-            try:   # ដកសំដីដោយ Demucs (មិន fallback ទៅវិធីមិនស្អាតទៀតទេ)
-                subprocess.run([sys.executable, "-m", "demucs", "-n", model, "--two-stems=vocals", "-o", str(sep), str(STORE / wav)],
-                               check=True, capture_output=True)
-                ff("-i", str(sep / model / f"{vid}_bgm_src" / "no_vocals.wav"), "-c:a", "libmp3lame", "-b:a", "192k", name)
-            except (FileNotFoundError, subprocess.CalledProcessError) as e:
-                err = (e.stderr.decode("utf-8", "ignore") if getattr(e, "stderr", None) else str(e))[-400:]
-                print("Demucs failed:", err, flush=True)
-                raise RuntimeError("ដកសំដីចេញមិនបាន (Demucs): " + err)
-            BGM_JOBS[vid] = {"state": "done", "url": f"/files/{name}"}
+            source.write_bytes(data)
+            channels = _bgm_channels(source)
+            BGM_JOBS[vid] = {"state": "running", "phase": "កំពុងបម្លែងសំឡេងសម្រាប់ដកសំដី…"}
+            _bgm_ff(min(25, deadline - time.monotonic() - 5), "-i", tmp, "-vn", "-ac", "2", "-ar", "44100", wav)
+            model = os.environ.get("KH_DEMUCS_MODEL", "htdemucs")
+            demucs_error = ""
+            BGM_JOBS[vid] = {"state": "running", "phase": "កំពុងដកសំដី (របៀបលឿន)…"}
+            remaining = deadline - time.monotonic()
+            demucs_timeout = min(90, remaining - 15)  # ទុកពេលសម្រាប់ fallback និង MP3 encode
+            try:
+                if demucs_timeout <= 0:
+                    raise subprocess.TimeoutExpired("demucs", demucs_timeout)
+                env = os.environ.copy()
+                threads = max(1, min(4, os.cpu_count() or 2))
+                env["OMP_NUM_THREADS"] = str(threads)
+                env["MKL_NUM_THREADS"] = str(threads)
+                subprocess.run(_demucs_command(model, wav_path, sep), check=True,
+                               capture_output=True, text=True, timeout=demucs_timeout, env=env)
+                separated = sep / model / f"{vid}_bgm_src" / "no_vocals.wav"
+                if not separated.is_file():
+                    raise RuntimeError("Demucs មិនបានបង្កើត no_vocals.wav")
+                BGM_JOBS[vid] = {"state": "running", "phase": "កំពុងបង្កើតឯកសារ BGM…"}
+                _bgm_ff(deadline - time.monotonic(), "-i", str(separated), "-c:a", "libmp3lame", "-b:a", "192k", name)
+            except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError) as e:
+                detail = getattr(e, "stderr", "") or str(e)
+                if isinstance(detail, bytes):
+                    detail = detail.decode("utf-8", "ignore")
+                demucs_error = str(detail)[-350:]
+                print("Demucs timed out/failed; using quick BGM filter:", demucs_error, flush=True)
+                BGM_JOBS[vid] = {"state": "running", "phase": "កំពុងបញ្ចប់ដោយ filter លឿន…"}
+                quick_filter = _quick_bgm_filter(channels)
+                _bgm_ff(deadline - time.monotonic(), "-i", wav, "-af", quick_filter,
+                        "-c:a", "libmp3lame", "-b:a", "192k", name)
+                warning = ("Demucs យឺត ឬមិនដំណើរការ។ បានប្រើរបៀបលឿនជំនួស; សំឡេងអាចមិនស្អាតដូច Demucs។"
+                           if channels > 1 else
+                           "Demucs យឺត ឬមិនដំណើរការ។ BGM mono មិនអាចដកសំដីស្អាតដោយ filter លឿនបានទេ; បានបន្ថយសំឡេងក្នុងជួរភាសានិយាយ។")
+            else:
+                warning = ""
+            if time.monotonic() - started > BGM_MAX_SECONDS:
+                raise subprocess.TimeoutExpired("bgm job", BGM_MAX_SECONDS)
+            BGM_JOBS[vid] = {"state": "done", "url": f"/files/{name}", "warning": warning,
+                             "elapsed": round(time.monotonic() - started, 1)}
+        except subprocess.TimeoutExpired:
+            BGM_JOBS[vid] = {"state": "error", "error": "ការដកសំដីចំណាយជិត ២ នាទីហើយ។ សូមប្រើ BGM ខ្លីជាង ឬសាកម្ដងទៀត។"}
         except Exception as e:
             BGM_JOBS[vid] = {"state": "error", "error": str(e)[-500:]}
         finally:
-            (STORE / tmp).unlink(missing_ok=True); (STORE / wav).unlink(missing_ok=True)
+            (STORE / tmp).unlink(missing_ok=True); wav_path.unlink(missing_ok=True)
             shutil.rmtree(sep, ignore_errors=True)
     threading.Thread(target=job, daemon=True).start()
     return {"job": True}
