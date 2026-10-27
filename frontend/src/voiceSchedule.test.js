@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { scheduleVoices } from "./voiceSchedule.js";
+import { scheduleVoices, sourceOffsetAt, voiceAtTime, voiceRequestMatches } from "./voiceSchedule.js";
 
 test("voice, subtitle, and character keep the same segment after a delayed clip", () => {
   const rows = [
@@ -14,6 +14,30 @@ test("voice, subtitle, and character keep the same segment after a delayed clip"
   assert.equal(segments[1].start, 3);
   assert.equal(segments[1].km, "ប្រយោគទីពីរ");
   assert.equal(segments[1].char, "女主");
+});
+
+test("does not play dialogue while paused and seeks audio to the matching subtitle offset", () => {
+  const item = { start: 4, end: 8, tempo: 1.1, segment: { id: 7, audio: "line.mp3" } };
+  assert.equal(voiceAtTime([item], 6, false), null);
+  assert.equal(voiceAtTime([item], 6, true), item);
+  assert.equal(sourceOffsetAt(item, 6), 2.2);
+});
+
+test("waits for real audio duration before scheduling legacy clips", () => {
+  const row = { id: 3, start: 1, end: 2, km: "ឃ្លា", char: "男主", audio: "/legacy.mp3" };
+  const unknown = scheduleVoices([row]).scheduled;
+  assert.equal(unknown[0].durationKnown, false);
+  assert.equal(voiceAtTime(unknown, 1.1), null);
+  const measured = scheduleVoices([{ ...row, audio_duration: 2 }]).scheduled;
+  assert.equal(measured[0].durationKnown, true);
+  assert.equal(voiceAtTime(measured, 1.1), measured[0]);
+});
+
+test("rejects a late TTS response after its translation or character assignment changed", () => {
+  const request = { text: "អត្ថបទចាស់", char: "男主", charId: "cast-1", castVoice: "voice-a" };
+  const current = { km: "អត្ថបទថ្មី", char: "女主", char_id: "cast-1" };
+  assert.equal(voiceRequestMatches(current, request, "voice-b"), false);
+  assert.equal(voiceRequestMatches({ km: request.text, char: request.char, char_id: request.charId }, request, "voice-a"), true);
 });
 
 test("gently speeds up a clip only when it fits within the safe limit", () => {

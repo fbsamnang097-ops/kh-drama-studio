@@ -1,4 +1,20 @@
 // Mirror backend/subs.py:schedule_voice_clips for synchronized preview and timeline timing.
+export function voiceAtTime(schedule, currentTime, isPlaying = true) {
+  if (!isPlaying) return null;
+  return schedule.find((item) => item.durationKnown !== false && currentTime >= item.start && currentTime < item.end) || null;
+}
+
+export function sourceOffsetAt(item, currentTime) {
+  return Math.max(0, (currentTime - item.start) * item.tempo);
+}
+
+export function voiceRequestMatches(segment, request, currentVoice = "") {
+  return segment.km === request.text &&
+    (segment.char || "") === (request.char || "") &&
+    (segment.char_id || "") === (request.charId || "") &&
+    (currentVoice || "") === (request.castVoice || "");
+}
+
 export function scheduleVoices(rows) {
   const ordered = rows.map((segment, index) => ({ segment, index }))
     .filter(({ segment }) => segment.audio)
@@ -8,7 +24,8 @@ export function scheduleVoices(rows) {
 
   ordered.forEach(({ segment, index }, pos) => {
     const start = Math.max(0, Number(segment.start) || 0);
-    const sourceDuration = Number(segment.audio_duration) > 0
+    const durationKnown = Number(segment.audio_duration) > 0;
+    const sourceDuration = durationKnown
       ? Number(segment.audio_duration)
       : Math.max(0, (Number(segment.end) || start) - start);
     const scheduledStart = Math.max(start, previousEnd);
@@ -27,7 +44,7 @@ export function scheduleVoices(rows) {
       }
     }
 
-    const item = { segment, index, start: scheduledStart, end: scheduledStart + duration, duration, tempo };
+    const item = { segment, index, start: scheduledStart, end: scheduledStart + duration, duration, tempo, durationKnown };
     scheduled.push(item);
     previousEnd = item.end;
   });
