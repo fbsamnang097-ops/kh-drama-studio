@@ -178,10 +178,17 @@ def characters_assign(b: AssignIn):
         try:
             if b.reset:
                 RG.reset_manual(con, pid)
+            changed_voice_ids = []
+            current_chars = {c["id"]: c for c in RG.characters(con, pid)}
+            provider = P.voice_support_report()["provider"]
             for cid, vid in (b.overrides or {}).items():
                 if vid not in V.VOICES:
                     raise HTTPException(400, f"សំឡេងមិនស្គាល់: {vid}")
-                RG.set_voice(con, cid, vid, provider=P.voice_support_report()["provider"], manual=True)
+                if cid not in current_chars:
+                    raise HTTPException(404, f"រកមិនឃើញតួអង្គ: {cid}")
+                if current_chars[cid].get("voice") != vid:
+                    changed_voice_ids.append(cid)
+                RG.set_voice(con, cid, vid, provider=provider, manual=True)
             # voice book: ឈ្មោះ → សំឡេង (ឆ្លងភាគ)
             book = ID.load_voicebook(STORE)
             if b.reset:
@@ -201,6 +208,7 @@ def characters_assign(b: AssignIn):
                     for s in RG.segments(con, pid)]
             if rows:
                 RG.save_segments(con, pid, rows)
+            RG.clear_character_segment_audio(con, pid, changed_voice_ids)
             return {"ok": True, "characters": RG.characters(con, pid),
                     "overrides": {c["id"]: c["voice"] for c in RG.characters(con, pid)
                                   if c.get("assignment") == "manual"}}
