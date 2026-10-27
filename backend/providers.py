@@ -2,9 +2,18 @@ from .utils import open_safe
 import json, os, pathlib, asyncio, base64, time, httpx
 from xml.sax.saxutils import escape
 from .paths import SETTINGS as SF   # exe: settings ក្នុង folder អ្នកប្រើ
+def _normalize_model(provider, model):
+    # Gemini 2.5 Flash is retired for new users; upgrade saved UI settings automatically.
+    if provider == "gemini" and model in ("gemini-2.5-flash", "models/gemini-2.5-flash"):
+        return "gemini-3.8-flash"
+    return model
+
 def load():
     d = json.loads(SF.read_text()) if SF.exists() else {}
     d.update({k[3:].lower(): v for k, v in os.environ.items() if k.startswith("KH_") and v})   # Render env vars
+    for k, value in list(d.items()):
+        if k == "translate_model_gemini" or k.endswith("_translate_model_gemini"):
+            d[k] = _normalize_model("gemini", value)
     return d
 def save(d): SF.write_text(json.dumps(d)); os.chmod(SF, 0o600)
 def masked(d): return {k: ("••••" + v[-4:] if k.startswith("key_") and v else v) for k, v in d.items()}
@@ -13,7 +22,7 @@ def masked(d): return {k: ("••••" + v[-4:] if k.startswith("key_") and v
 CATALOG = {
   "translate": {
     "codecraft": {"key": True, "model": "claude-opus-4.8"}, "openai": {"key": True, "model": "gpt-4o"},
-    "anthropic": {"key": True, "model": "claude-sonnet-5-5"}, "gemini": {"key": True, "model": "gemini-2.5-flash"},
+    "anthropic": {"key": True, "model": "claude-sonnet-5-5"}, "gemini": {"key": True, "model": "gemini-3.8-flash"},
     "groq": {"key": True, "model": "llama-3.3-70b-versatile"}, "deepseek": {"key": True, "model": "deepseek-chat"},
     "openrouter": {"key": True, "model": "anthropic/claude-sonnet-4.5"}, "mistral": {"key": True, "model": "mistral-large-latest"},
     "together": {"key": True, "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo"},
@@ -237,7 +246,8 @@ def prov(cfg, role): return _tget(cfg, role, "provider") or TIERS[tier(cfg)][rol
 def model_for(cfg, role, p):
     d = TIERS[tier(cfg)][role]
     default = d["model"] if d["provider"] == p and d.get("model") else CATALOG[role][p].get("model", "")
-    return _tget(cfg, role, "model", f"_{p}") or default
+    selected = _tget(cfg, role, "model", f"_{p}") or default
+    return _normalize_model(p, selected) if role == "translate" else selected
 def _g(cfg, k, default=""): return cfg.get(k) or default
 def _key(cfg, role, p):
     k = cfg.get(f"key_custom_{role}" if p == "custom" else f"key_{p}")
@@ -278,12 +288,19 @@ PROMPT = ("Translate each Chinese line to natural spoken Khmer for drama dubbing
 def _chat(cfg, p, msg):
     model = model_for(cfg, "translate", p); key = _key(cfg, "translate", p)
     if p == "gemini":
-        # Use Gemini's native REST API: avoids compatibility-route 404s and keeps the key out of the URL.
+        # Interactions API is the recommended Gemini endpoint; API key stays out of the URL.
         model = model.removeprefix("models/")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        url = "https://generativelanguage.googleapis.com/v1beta/interactions"
+        schema = {
+            "type": "array",
+            "items": {"type": "object", "properties": {
+                "km": {"type": "string"},
+                "char": {"type": "string", "enum": ["男主", "女主", "老男", "老女", "小孩", "小孩男", "旁白"]},
+            }, "required": ["km", "char"]},
+        }
         r = httpx.post(url, headers={"x-goog-api-key": key, "Content-Type": "application/json"},
-            json={"contents": [{"role": "user", "parts": [{"text": msg}]}],
-                  "generationConfig": {"responseMimeType": "application/json", "maxOutputTokens": 8192}},
+            json={"model": model, "input": msg,
+                  "response_format": {"type": "text", "mime_type": "application/json", "schema": schema}},
             timeout=300)
         if r.is_error:
             try:
@@ -292,16 +309,17 @@ def _chat(cfg, p, msg):
                 detail = r.text
             raise RuntimeError(f"Gemini API HTTP {r.status_code}: {str(detail)[:500]}")
         data = r.json()
-        candidates = data.get("candidates") or []
-        if not candidates:
-            feedback = data.get("promptFeedback") or {}
-            raise RuntimeError("Gemini API returned no candidates: " + json.dumps(feedback, ensure_ascii=False)[:500])
-        parts = candidates[0].get("content", {}).get("parts", [])
-        text = "".join(part.get("text", "") for part in parts
-                       if part.get("text") and not part.get("thought"))
-        if not text.strip():
-            raise RuntimeError("Gemini API returned an empty translation response")
-        return text
+        texts = []
+        for step in data.get("steps", []):
+            if step.get("type") == "model_output":
+                for part in step.get("content", []):
+                    if part.get("type") == "text" and part.get("text"):
+                        texts.append(part["text"])
+        if not texts and data.get("output_text"):
+            texts.append(data["output_text"])
+        if not texts:
+            raise RuntimeError(f"Gemini Interactions API returned no text (status={data.get('status', 'unknown')})")
+        return "".join(texts)
     if p == "anthropic":
         r = httpx.post("https://api.anthropic.com/v1/messages", headers={"x-api-key": key, "anthropic-version": "2023-06-01"},
             json={"model": model, "max_tokens": 8000, "messages": [{"role": "user", "content": msg}]}, timeout=300)
