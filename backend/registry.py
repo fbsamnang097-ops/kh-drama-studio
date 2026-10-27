@@ -15,6 +15,7 @@ restart របស់ backend / reload គម្រោង / បង្កើតអ
   3. មិនដូច → បង្កើត ID ថ្មី (គ្រាន់តែពេលជាតួអង្គថ្មីពិតប្រាកដ)
 """
 
+import hashlib
 import json
 import pathlib
 import sqlite3
@@ -98,6 +99,41 @@ def characters(con, pid):
         "SELECT * FROM characters WHERE pid=? ORDER BY first_seen, cid", (pid,))]
 
 
+def character_id_owner(con, cid):
+    row = con.execute("SELECT pid FROM characters WHERE cid=?", (cid,)).fetchone()
+    return row["pid"] if row else None
+
+
+def project_character_id(con, pid, preferred):
+    """ធានា ID មិនជាន់គម្រោងផ្សេង ទោះ ID ដើមជា narrator/c1/u1 ក៏ដោយ។"""
+    preferred = str(preferred or f"c_{uuid.uuid4().hex[:8]}")
+    owner = character_id_owner(con, preferred)
+    if owner in (None, pid):
+        return preferred
+    suffix = hashlib.sha1(str(pid).encode("utf-8")).hexdigest()[:8]
+    candidate = f"{preferred}_{suffix}"
+    attempt = 2
+    while character_id_owner(con, candidate) not in (None, pid):
+        candidate = f"{preferred}_{suffix}_{attempt}"
+        attempt += 1
+    return candidate
+
+
+def remap_segment_character_id(con, pid, old_cid, new_cid):
+    if old_cid and new_cid and old_cid != new_cid:
+        con.execute("UPDATE segments SET cid=? WHERE pid=? AND cid=?", (new_cid, pid, old_cid))
+        con.commit()
+
+
+def ensure_project_character(con, pid, char, keep_voice=True):
+    """បញ្ចូលតួអង្គឡើងវិញដោយសុវត្ថិភាព និងកែ segment បើ ID ត្រូវ namespace។"""
+    requested = char.get("id") or f"c_{uuid.uuid4().hex[:8]}"
+    actual = project_character_id(con, pid, requested)
+    remap_segment_character_id(con, pid, requested, actual)
+    upsert_character(con, pid, {**char, "id": actual}, keep_voice=keep_voice)
+    return actual
+
+
 def find_by_name(con, pid, name):
     if not name:
         return None
@@ -132,6 +168,8 @@ def upsert_character(con, pid, char, keep_voice=True):
     """បញ្ចូល/ធ្វើបច្ចុប្បន្នភាពតួអង្គ — រក្សា ID និងសំឡេងចាស់ (បើមិន manual)"""
     cid = char.get("id") or f"c_{uuid.uuid4().hex[:8]}"
     old = con.execute("SELECT * FROM characters WHERE cid=?", (cid,)).fetchone()
+    if old and old["pid"] != pid:
+        raise ValueError(f"Character ID is already owned by another project: {cid}")
     now = _now()
     if old:
         o = _row_to_char(old)

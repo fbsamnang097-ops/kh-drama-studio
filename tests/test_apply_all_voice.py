@@ -1,12 +1,105 @@
 """Regression test for bulk Character voice assignment and stale-audio invalidation."""
 
+import json
 import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
+from backend import identity as ID
 from backend import registry as RG
 
 
 class ApplyAllVoiceTest(unittest.TestCase):
+    def test_resolver_namespaces_narrators_across_projects(self):
+        with tempfile.TemporaryDirectory() as directory:
+            con = RG.connect(directory)
+            try:
+                results = [
+                    ID.resolve([{"zh": "旁白：他终于回到了家。", "start": 0, "end": 1}],
+                               con=con, pid=project, provider="edge")
+                    for project in ("first-project", "second-project")
+                ]
+                first_id = results[0]["characters"][0]["id"]
+                second_id = results[1]["characters"][0]["id"]
+                self.assertEqual(first_id, "narrator")
+                self.assertNotEqual(second_id, first_id)
+                self.assertTrue(second_id.startswith("narrator_"))
+                self.assertEqual([c["id"] for c in RG.characters(con, "first-project")], [first_id])
+                self.assertEqual([c["id"] for c in RG.characters(con, "second-project")], [second_id])
+            finally:
+                con.close()
+
+    def test_narrator_ids_are_project_scoped_and_legacy_cast_can_be_restored(self):
+        with tempfile.TemporaryDirectory() as directory:
+            con = RG.connect(directory)
+            try:
+                first, second = "first-project", "second-project"
+                RG.ensure_project(con, first)
+                RG.ensure_project(con, second)
+                narrator = {"id": "narrator", "name": "អ្នកនិទាន", "gender": "male",
+                            "age": "adult", "role": "旁白", "voice": "male_adult_1",
+                            "kind": "narrator", "named": False}
+                RG.ensure_project_character(con, first, narrator)
+                RG.save_segments(con, second, [{"idx": 0, "cid": "narrator", "voice_id": "male_adult_1",
+                                                "start": 0, "end": 1, "zh": "A", "km": "ក"}])
+
+                restored_id = RG.ensure_project_character(con, second, narrator)
+                self.assertNotEqual(restored_id, "narrator")
+                self.assertTrue(restored_id.startswith("narrator_"))
+                self.assertEqual([c["id"] for c in RG.characters(con, first)], ["narrator"])
+                self.assertEqual([c["id"] for c in RG.characters(con, second)], [restored_id])
+                self.assertEqual(RG.segments(con, second)[0]["cid"], restored_id)
+                self.assertEqual(RG.project_character_id(con, second, "narrator"), restored_id)
+                with self.assertRaises(ValueError):
+                    RG.upsert_character(con, second, narrator)
+            finally:
+                con.close()
+
+    def test_apply_all_recovers_legacy_narrator_missing_from_registry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store, data = root / "store", root / "data"
+            store.mkdir()
+            data.mkdir()
+            con = RG.connect(data)
+            try:
+                RG.ensure_project(con, "older-project")
+                RG.ensure_project(con, "current-project")
+                narrator = {"id": "narrator", "name": "អ្នកនិទាន", "gender": "male",
+                            "age": "adult", "role": "旁白", "voice": "male_adult_1",
+                            "kind": "narrator", "named": False}
+                RG.ensure_project_character(con, "older-project", narrator)
+                RG.save_segments(con, "current-project", [{
+                    "idx": 0, "cid": "narrator", "voice_id": "male_adult_1",
+                    "start": 0, "end": 1, "zh": "A", "km": "ក", "audio": "/files/old.mp3",
+                }])
+            finally:
+                con.close()
+            (store / "current-project.cast.json").write_text(
+                json.dumps({"characters": [narrator], "items": [{"char_id": "narrator"}]}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            from backend import main as API
+            with patch.object(API, "STORE", store), patch.object(API, "reg", side_effect=lambda: RG.connect(data)):
+                result = API.characters_assign(API.AssignIn(
+                    id="current-project", project="current-project",
+                    overrides={"narrator": "female_adult_1"},
+                ))
+
+            restored_id = result["id_map"]["narrator"]
+            self.assertTrue(restored_id.startswith("narrator_"))
+            self.assertEqual(result["characters"][0]["id"], restored_id)
+            self.assertEqual(result["characters"][0]["voice"], "female_adult_1")
+            con = RG.connect(data)
+            try:
+                self.assertEqual(RG.segments(con, "current-project")[0]["cid"], restored_id)
+                self.assertIsNone(RG.segments(con, "current-project")[0]["audio"])
+                self.assertEqual([c["id"] for c in RG.characters(con, "older-project")], ["narrator"])
+            finally:
+                con.close()
+
     def test_apply_one_voice_to_all_characters_and_clear_changed_audio(self):
         with tempfile.TemporaryDirectory() as directory:
             con = RG.connect(directory)
