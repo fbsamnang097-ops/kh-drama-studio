@@ -147,9 +147,9 @@ jobs:
           generate_release_notes: false
           body: |
             ## អ្វីថ្មី
+            - កែការតភ្ជាប់ Gemini API ដោយប្រើ native generateContent endpoint ដើម្បីដោះស្រាយកំហុស 404; key ត្រូវបានផ្ញើតាម header មិនដាក់ក្នុង URL។
             - បន្ថែមជ្រើសសំឡេង ហើយចុច «អនុវត្តទាំងអស់» នៅខាងស្តាំ Find & Replace ដើម្បីដាក់សំឡេងដែលបានជ្រើសទៅ Character ទាំងអស់។
-            - ពេលប្តូរសំឡេង ប្រព័ន្ធលុបសំឡេងចាស់សម្រាប់តួអង្គដែលបានប្តូរ ដើម្បីឱ្យបង្កើតសំឡេងថ្មីបានត្រឹមត្រូវ។
-            - រក្សាការរៀប Settings ជាមួយ Standard/Premium លើទូរសព្ទ និងបង្កើត installer សម្រាប់ Windows និង Mac ទាំងពីរប្រភេទ។
+            - ពេលប្តូរសំឡេង ប្រព័ន្ធលុបសំឡេងចាស់សម្រាប់តួអង្គដែលបានប្តូរ។ រក្សា Settings ជាមួយ Standard/Premium លើទូរសព្ទ និង installer Windows/Mac។
 
             ## ទាញយក
             [ទំព័រទាញយកសម្រាប់ Windows និង Mac](https://github.com/fbsamnang097-ops/kh-drama-studio/releases/tag/${{ github.ref_name }})
