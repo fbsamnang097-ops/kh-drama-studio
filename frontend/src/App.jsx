@@ -5,6 +5,7 @@ import CharacterPanel from "./CharacterPanel.jsx";
 import { LAYERS, initLayers, resetLayers } from "./layers.js";
 import { renderTextPng } from "./textPix.js";
 import { useUpdate, UpdateBanner, UpdatePill, UpdateBox } from "./UpdateNotice.jsx";
+import { scheduleVoices } from "./voiceSchedule.js";
 
 const api = async (path, body, isForm) => {
   const r = await fetch(path, body ? { method: "POST", ...(isForm ? { body } : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }) } : undefined);
@@ -105,7 +106,11 @@ export default function App() {
       setSegs((cur) => cur.map((x, i) => {
         const row = bySeg.get(i);
         const c = row && cs.find((cc) => cc.id === row.cid);
-        return c ? { ...x, char_id: c.id, char: c.role || x.char } : x;
+        if (!c) return x;
+        const char = c.role || x.char;
+        const changed = !!x.audio && (x.char_id !== c.id || x.char !== char);
+        return { ...x, char_id: c.id, char,
+          ...(changed ? { audio: "", audio_duration: undefined, status: x.km ? "Pending" : x.status } : {}) };
       }));
       setVoiceCat((v) => ({ ...v, provider: st.provider || v.provider,
         limitations: (st.provider?.limitations?.length ? st.provider.limitations : v.limitations) }));
@@ -123,37 +128,31 @@ export default function App() {
   const [tier, setTier] = useState("standard");        // standard | premium
   useEffect(() => { api("/api/settings").then((s) => setTier(s.tier || "standard")).catch(() => {}); }, [showSet]);
   const switchTier = async (k) => { const prev = tier; setTier(k); try { await api("/api/settings", { tier: k }); } catch (e) { setTier(prev); alert(e.message); } };
-  const vref = useRef(); const played = useRef(null); const voiceAudio = useRef(null); const voiceQueue = useRef([]);
+  const vref = useRef(); const played = useRef(null); const voiceAudio = useRef(null);
+  const voicePlan = useMemo(() => scheduleVoices(segs), [segs]);
+  const timelineSegs = voicePlan.segments;
   const stopVoiceAudio = useCallback(() => {
     if (voiceAudio.current) {
       voiceAudio.current.pause();
       voiceAudio.current.currentTime = 0;
       voiceAudio.current = null;
     }
-    voiceQueue.current = [];
     played.current = null;
   }, []);
   const pauseVoiceAudio = useCallback(() => { voiceAudio.current?.pause(); }, []);
   const resumeVoiceAudio = useCallback(() => {
     if (voiceAudio.current?.paused) voiceAudio.current.play().catch((e) => console.error("Khmer audio failed:", e));
   }, []);
-  const playVoiceAudio = useCallback((audio) => {
-    const start = (url) => {
-      const player = new Audio(url);
-      voiceAudio.current = player;
-      const advance = () => {
-        if (voiceAudio.current !== player) return;
-        voiceAudio.current = null;
-        const next = voiceQueue.current.shift();
-        if (next) start(next.url);
-      };
-      player.onended = advance;
-      player.play().catch((e) => {
-        console.error("Khmer audio failed:", url, e);
-        advance();
-      });
-    };
-    start(audio);
+  const playVoiceAudio = useCallback((item) => {
+    const player = new Audio(item.segment.audio);
+    player.playbackRate = item.tempo;
+    player.preservesPitch = true;
+    player.onended = () => { if (voiceAudio.current === player) voiceAudio.current = null; };
+    voiceAudio.current = player;
+    player.play().catch((e) => {
+      console.error("Khmer audio failed:", item.segment.audio, e);
+      if (voiceAudio.current === player) voiceAudio.current = null;
+    });
   }, []);
   useEffect(() => () => stopVoiceAudio(), [stopVoiceAudio]);
 
@@ -167,20 +166,21 @@ export default function App() {
   const patch = (id, p) => setSegs((s) => s.map((x) => (x.id === id ? { ...x, ...p } : x)));
   const run = (label, fn) => async () => { setBusy(label); try { await fn(); window.khOk && window.khOk(label); } catch (e) { alert(e.message); } setBusy(""); };
 
-  // Sync វីដេអូ ↔ Subtitle ↔ សំឡេង
+  // Sync វីដេអូ ↔ Subtitle ↔ សំឡេង លើ effective schedule តែមួយ
   const onTime = () => {
     const now = vref.current.currentTime; setT(now);
-    const a = segs.find((s) => now >= s.start && now < s.end);
-    const key = a ? `${a.id}:${a.audio || ""}` : null;
+    const item = voicePlan.scheduled.find((entry) => now >= entry.start && now < entry.end);
+    const key = item ? `${item.segment.id}:${item.segment.audio}` : null;
     if (played.current !== key) {
+      stopVoiceAudio();
       played.current = key;
-      if (a?.audio) {
-        if (voiceAudio.current) voiceQueue.current.push({ key, url: a.audio });
-        else playVoiceAudio(a.audio);
-      }
+      if (item) playVoiceAudio(item);
     }
   };
-  const active = segs.find((s) => t >= s.start && t < s.end);
+  const active = timelineSegs.reduce((current, segment) => {
+    if (t < segment.start || t >= segment.end) return current;
+    return !current || segment.start > current.start ? segment : current;
+  }, null);
 
   const onFile = async (f) => {
     if (!f) return; setBusy("កំពុង Upload...");
@@ -199,7 +199,13 @@ export default function App() {
           segments: r.map((x) => ({ start: x.start, end: x.end, zh: x.zh })),
         }).then((d) => {
           setCast(d.characters || []);
-          setSegs((cur) => cur.map((x, i) => ({ ...x, char_id: d.items[i]?.char_id, char: d.items[i]?.char ?? x.char, conf: d.items[i]?.conf ?? x.conf })));
+          setSegs((cur) => cur.map((x, i) => {
+            const char_id = d.items[i]?.char_id ?? x.char_id;
+            const char = d.items[i]?.char ?? x.char;
+            const changed = !!x.audio && (char_id !== x.char_id || char !== x.char);
+            return { ...x, char_id, char, conf: d.items[i]?.conf ?? x.conf,
+              ...(changed ? { audio: "", audio_duration: undefined, status: x.km ? "Pending" : x.status } : {}) };
+          }));
           setCastMsg(`🎭 ${d.summary}`);
           setVoiceCat((vv) => ({ ...vv, limitations: d.limitations || [] }));
         }).catch((e) => console.error("character detect failed:", e));
@@ -213,9 +219,10 @@ export default function App() {
   const base = video?.id || "project";
   const save = (name, data, type = "text/plain") => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([data], { type: type + ";charset=utf-8" })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); };
   const exportText = (key, fmt) => {   // key: "zh" (STT) | "km" (Translate) — រក្សាគ្រប់ segment ដើម្បីឱ្យ Import ត្រឡប់មកត្រូវលំដាប់
-    if (fmt === "srt") save(`${base}_${key}.srt`, toSrt(segs, key), "application/x-subrip");
-    else if (fmt === "txt") save(`${base}_${key}.txt`, segs.map((s) => (s[key] || "").replace(/\n/g, " ")).join("\n"));
-    else save(`${base}_${key}.json`, JSON.stringify(segs.map(({ start, end, zh, km, char }) => ({ start, end, zh, km, char })), null, 2), "application/json");
+    const rows = key === "km" ? timelineSegs : segs;
+    if (fmt === "srt") save(`${base}_${key}.srt`, toSrt(rows, key), "application/x-subrip");
+    else if (fmt === "txt") save(`${base}_${key}.txt`, rows.map((s) => (s[key] || "").replace(/\n/g, " ")).join("\n"));
+    else save(`${base}_${key}.json`, JSON.stringify(rows.map(({ start, end, zh, km, char }) => ({ start, end, zh, km, char })), null, 2), "application/json");
   };
   const readItems = async (f, field) => {   // → [{start?,end?,text,char?}]
     const txt = await f.text();
@@ -240,7 +247,7 @@ export default function App() {
     if (!byTime && items.length !== segs.length) alert(`ចំនួនបន្ទាត់ (${items.length}) មិនស្មើ segments (${segs.length}) — ផ្គូផ្គងតាមលំដាប់`);
     setSegs((cur) => cur.map((s, i) => {
       const it = byTime ? items.filter((x) => Math.abs(x.start - s.start) <= 1.5).sort((x, y) => Math.abs(x.start - s.start) - Math.abs(y.start - s.start))[0] : items[i];
-      return it ? { ...s, km: it.text, char: it.char || s.char, status: "Pending", audio: "" } : s;
+      return it ? { ...s, km: it.text, char: it.char || s.char, status: "Pending", audio: "", audio_duration: undefined } : s;
     }));
   });
   const exportTts = runWith("កំពុង Export TTS...", async (kind) => {
@@ -250,8 +257,10 @@ export default function App() {
   const importTts = runWith("កំពុង Import សំឡេង...", async (files) => {
     if (!segs.length) throw new Error("សូម Transcribe ឬ Import STT ជាមុន");
     const fd = new FormData(); files.forEach((f) => fd.append("files", f));
-    const r = await api("/api/tts_import", fd, true), m = new Map(r.map((x) => [x.index, x.url]));
-    setSegs((cur) => cur.map((s, i) => (m.has(i + 1) ? { ...s, audio: m.get(i + 1), status: "Done" } : s)));
+    const r = await api("/api/tts_import", fd, true), m = new Map(r.map((x) => [x.index, x]));
+    setSegs((cur) => cur.map((s, i) => (m.has(i + 1)
+      ? { ...s, audio: m.get(i + 1).url, audio_duration: m.get(i + 1).audio_duration, status: "Done" }
+      : s)));
     if (r.length !== segs.length) alert(`Import សំឡេង ${r.length} / ${segs.length} segments (លេខនៅដើមឈ្មោះ file = លំដាប់ segment)`);
   });
 
@@ -265,12 +274,13 @@ export default function App() {
       use_audio: true,
     });
     setCast(r.characters || []);
-    setSegs((cur) => cur.map((x, i) => ({
-      ...x,
-      char_id: r.items[i]?.char_id ?? x.char_id,
-      char: r.items[i]?.char ?? x.char,
-      conf: r.items[i]?.conf ?? x.conf,
-    })));
+    setSegs((cur) => cur.map((x, i) => {
+      const char_id = r.items[i]?.char_id ?? x.char_id;
+      const char = r.items[i]?.char ?? x.char;
+      const changed = !!x.audio && (char_id !== x.char_id || char !== x.char);
+      return { ...x, char_id, char, conf: r.items[i]?.conf ?? x.conf,
+        ...(changed ? { audio: "", audio_duration: undefined, status: x.km ? "Pending" : x.status } : {}) };
+    }));
     setCastMsg(`🎭 ${r.summary}${r.audio?.speakers ? ` · ${r.audio.speakers} សំឡេងខុសគ្នា` : ""}`
       + `${r.scenes?.length ? ` · ${r.scenes.length} ឆាក` : ""}`);
     setVoiceCat((v) => ({ ...v, limitations: r.limitations || v.limitations, provider: r.provider || v.provider }));
@@ -288,7 +298,7 @@ export default function App() {
         const mappedCid = idMap[s.char_id] || s.char_id;
         if (s.char_id !== cid && mappedCid !== actualCid) return mappedCid !== s.char_id ? { ...s, char_id: mappedCid } : s;
         return { ...s, char_id: mappedCid,
-          ...(voiceChanged ? { audio: "", status: s.km ? "Pending" : s.status } : {}) };
+          ...(voiceChanged ? { audio: "", audio_duration: undefined, status: s.km ? "Pending" : s.status } : {}) };
       }));
     } catch (e) { alert(e.message); }
   };
@@ -309,7 +319,7 @@ export default function App() {
       const char_id = idMap[s.char_id] || s.char_id;
       const changed = changedIds.has(s.char_id) || changedIds.has(char_id);
       if (!changed && char_id === s.char_id) return s;
-      return { ...s, char_id, ...(changed ? { audio: "", status: s.km ? "Pending" : s.status } : {}) };
+      return { ...s, char_id, ...(changed ? { audio: "", audio_duration: undefined, status: s.km ? "Pending" : s.status } : {}) };
     }));
     setCastMsg(`✅ បានអនុវត្តសំឡេង ${voiceLabel} ទៅតួអង្គទាំង ${targets.length} នាក់។ បង្កើតសំឡេងឡើងវិញដោយចុច Generate Khmer Audio។`);
   });
@@ -327,7 +337,12 @@ export default function App() {
     if (!segs.length) throw new Error("សូម Transcribe ឬ Import STT ជាមុន");
     if (video?.id) return detectCore();          // មានវីដេអូ → វិភាគសំឡេងពិត
     const r = await api("/api/cast", { lines: segs.map((s) => s.zh || ""), keep: segs.map((s) => (s.manualChar ? s.char : "")) });
-    setSegs((cur) => cur.map((x, i) => ({ ...x, char: r.items[i]?.char || x.char, conf: r.items[i]?.conf })));
+    setSegs((cur) => cur.map((x, i) => {
+      const char = r.items[i]?.char || x.char;
+      const changed = !!x.audio && char !== x.char;
+      return { ...x, char, conf: r.items[i]?.conf ?? x.conf,
+        ...(changed ? { audio: "", audio_duration: undefined, status: x.km ? "Pending" : x.status } : {}) };
+    }));
     setCastMsg(`✨ រកឃើញតួអង្គ · ${r.summary}`);
   });
 
@@ -358,7 +373,13 @@ export default function App() {
 
   const translate = run("កំពុងបកប្រែ...", async () => {
     const r = await api("/api/translate", { lines: segs.map((s) => s.zh) });
-    setSegs((s) => s.map((x, i) => ({ ...x, km: r[i]?.km ?? x.km, char: r[i]?.char ?? x.char })));
+    setSegs((s) => s.map((x, i) => {
+      const km = r[i]?.km ?? x.km;
+      const char = r[i]?.char ?? x.char;
+      const speechChanged = km !== x.km || char !== x.char;
+      return { ...x, km, char,
+        ...(speechChanged ? { audio: "", audio_duration: undefined, status: "Pending" } : {}) };
+    }));
   });
   const genAudio = run("កំពុងបង្កើតសំឡេង...", async () => {
     let failed = 0;
@@ -367,7 +388,7 @@ export default function App() {
       if (!s.km) continue; patch(s.id, { status: "Generating" });
       let ok = false;
       for (let t = 0; t < 3 && !ok; t++) {
-        try { const r = await api("/api/tts", { text: s.km, char: voiceOf(s.char), char_id: s.char_id || "", video: video?.id || "", idx: i, speed: 0 }); patch(s.id, { audio: r.url, status: "Done" }); ok = true; }
+        try { const r = await api("/api/tts", { text: s.km, char: voiceOf(s.char), char_id: s.char_id || "", video: video?.id || "", idx: i, speed: 0 }); patch(s.id, { audio: r.url, audio_duration: r.audio_duration, status: "Done" }); ok = true; }
         catch (e) { console.error("TTS failed:", s.km, e); await new Promise((res) => setTimeout(res, 1000 * (t + 1))); }
       }
       if (!ok) { patch(s.id, { status: "Error" }); failed++; }
@@ -669,7 +690,7 @@ export default function App() {
                 <td><input className="w-14" value={s.start.toFixed(1)} onChange={(e) => patch(s.id, { start: +e.target.value || 0 })} /></td>
                 <td><input className="w-14" value={s.end.toFixed(1)} onChange={(e) => patch(s.id, { end: +e.target.value || 0 })} /></td>
                 <td><textarea rows={2} className="w-full resize-none leading-snug" value={s.zh} onChange={(e) => patch(s.id, { zh: e.target.value })} /></td>
-                <td><textarea rows={2} className="w-full resize-none leading-snug" value={s.km} onChange={(e) => patch(s.id, { km: e.target.value, status: "Pending", audio: "" })} /></td>
+                <td><textarea rows={2} className="w-full resize-none leading-snug" value={s.km} onChange={(e) => patch(s.id, { km: e.target.value, status: "Pending", audio: "", audio_duration: undefined })} /></td>
                 <td className="whitespace-nowrap">
                   {(() => {
                     const ch = cast.find((c) => c.id === s.char_id);
@@ -698,7 +719,7 @@ export default function App() {
           <B c="cyan" onClick={translate}>Translate</B><B c="green" onClick={genAudio}>Generate Khmer Audio</B><B c="orange" onClick={() => setShowExp(true)}>Export Video</B>{expDialog}
           <span className="ml-auto">Zoom</span><input type="range" min={5} max={80} value={zoom} onChange={(e) => setZoom(+e.target.value)} />
         </div>
-        <Timeline {...{ bgm, segs, patch, dur, zoom, t, video, seek: (x) => { if (vref.current) vref.current.currentTime = x; } }} />
+        <Timeline {...{ bgm, segs: timelineSegs, patch, dur, zoom, t, video, seek: (x) => { if (vref.current) vref.current.currentTime = x; } }} />
       </section>
       {showSet && <Settings tier={tier} onClose={() => setShowSet(false)} />}
     </div>
@@ -707,7 +728,7 @@ export default function App() {
 }
 
 function Timeline({ bgm, segs, patch, dur, zoom, t, video, seek }) {
-  const cv = useRef(); const W = Math.max(dur * zoom, 600);
+  const cv = useRef(); const maxEnd = segs.reduce((end, segment) => Math.max(end, Number(segment.end) || 0), dur); const W = Math.max(maxEnd * zoom, 600);
   useEffect(() => {  // Waveform ពីសំឡេងវីដេអូ
     if (!bgm) { cv.current?.getContext("2d").clearRect(0, 0, W, 50); return; } let dead = false;
     (async () => {

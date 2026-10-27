@@ -55,6 +55,32 @@ class VoiceTimelineTests(unittest.TestCase):
         )
         self.assertEqual([clip["audio"] for clip in scheduled], ["earlier.mp3", "later.mp3"])
 
+    def test_schedule_voice_segments_keeps_text_and_character_with_its_audio(self):
+        segments = [
+            {"start": 0.0, "end": 1.0, "km": "ឃ្លាទីមួយ", "char": "男主", "audio": "one.mp3"},
+            {"start": 1.0, "end": 2.0, "km": "ឃ្លាទីពីរ", "char": "女主", "audio": "two.mp3"},
+        ]
+        durations = {"one.mp3": 3.0, "two.mp3": 0.5}
+        clips, aligned = subs.schedule_voice_segments(
+            segments, duration_probe=lambda path: durations[path.name]
+        )
+        self.assertEqual(clips[1]["_segment_index"], 1)
+        self.assertAlmostEqual(aligned[1]["start"], 3.0)
+        self.assertAlmostEqual(aligned[1]["end"], 3.5)
+        self.assertEqual(aligned[1]["km"], "ឃ្លាទីពីរ")
+        self.assertEqual(aligned[1]["char"], "女主")
+
+    def test_export_args_does_not_reschedule_pre_scheduled_clips(self):
+        clips = [
+            {"audio": "one.mp3", "start": 0.0, "_tempo": 1.0, "_trim": None},
+            {"audio": "two.mp3", "start": 3.0, "_tempo": 1.0, "_trim": None},
+        ]
+        args = subs.export_args(
+            "source.mp4", clips, None, "out.mp4", {"preset": "fast", "crf": 23, "abr": "128k"},
+            dur=5, pre_scheduled=True,
+        )
+        self.assertIn("adelay=3000:all=1", ";".join(args))
+
     def test_voice_filter_applies_tempo_trim_and_scheduled_delay(self):
         clip = {"start": 2.0, "_tempo": 1.1, "_trim": 1.5}
         self.assertEqual(

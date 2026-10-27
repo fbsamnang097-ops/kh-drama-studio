@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test:voice-schedule": "node --test src/voiceSchedule.test.js",
     "ui:build": "npm run build",
     "check:ui-mount": "npm run build && node scripts/check-ui-mount.mjs"
   },
@@ -17,5 +18,5 @@
     "happy-dom": "20.14.6",
     "vite": "^5.4.21"
   },
-  "version": "1.0.47"
+  "version": "1.0.48"
 }

@@ -374,7 +374,8 @@ def tts(b: Sp):
                     con.close()
             except Exception as e:
                 print("record segment voice failed:", e, flush=True)
-        return {"url": f"/files/{name}", "char": P.voice_profile(voice)[1], "voice": voice,
+        return {"url": f"/files/{name}", "audio_duration": SB._probe_audio_duration(STORE / name),
+                "char": P.voice_profile(voice)[1], "voice": voice,
                 "char_id": b.char_id or None, "idx": b.idx}
     return guard(run)
 
@@ -435,15 +436,16 @@ def export(b: Ex):
         raise HTTPException(409, "កំពុង Export វីដេអូនេះ — សូមរង់ចាំ")
     src, out, srt = STORE / f"{vid}.mp4", STORE / f"{vid}_km.mp4", STORE / f"{vid}.srt"
     t = lambda s: f"{int(s//3600):02}:{int(s%3600//60):02}:{int(s%60):02},{int(s*1000)%1000:03}"
-    srt.write_text("\n".join(f"{i+1}\n{t(s['start'])} --> {t(s['end'])}\n{s['km']}\n" for i, s in enumerate(b.segments)), encoding="utf-8")
-    clips = [s for s in b.segments if s.get("audio")]
-    if not clips: raise HTTPException(400, "សូមចុច Generate Khmer Audio ជាមុន")
+    if not any(s.get("audio") for s in b.segments):
+        raise HTTPException(400, "សូមចុច Generate Khmer Audio ជាមុន")
+    clips, timeline_segments = SB.schedule_voice_segments(b.segments, audio_store=STORE)
+    srt.write_text("\n".join(f"{i+1}\n{t(s['start'])} --> {t(s['end'])}\n{s['km']}\n" for i, s in enumerate(timeline_segments)), encoding="utf-8")
     # កត់ត្រា manifest៖ បន្ទាត់ → តួអង្គ → សំឡេង ដែលបានបង្កើតពិត (Test 10)
     try:
         con = reg()
         try:
             rows = []
-            for i, sg in enumerate(b.segments):
+            for i, sg in enumerate(timeline_segments):
                 if not sg.get("audio"):
                     continue
                 rows.append({"idx": i, "cid": sg.get("char_id"), "voice_id": sg.get("voice"),
@@ -459,7 +461,7 @@ def export(b: Ex):
             con.close()
     except Exception as e:
         print("manifest failed:", e, flush=True)
-    track = SB.write_track(STORE, vid, b.segments, b.blank) if (b.subs and b.blank) else None
+    track = SB.write_track(STORE, vid, timeline_segments, b.blank) if (b.subs and b.blank) else None
     q = P.TIERS[P.tier(P.load())]["export"]   # Standard = លឿន, Premium = គុណភាពខ្ពស់
     if b.speed == "fast": q = _fast(q)
     q = _q(q, b.quality, src.name)
@@ -468,7 +470,7 @@ def export(b: Ex):
     W, H = G.probe(STORE, src.name)
     dur = G.duration(STORE, src.name) or 0.0
     args = SB.export_args(src.name, clips, track, out.name, q, bgm, layers, boxes, W, H, dur,
-                          E.video_args(q["preset"], q["crf"]), audio_store=STORE)
+                          E.video_args(q["preset"], q["crf"]), audio_store=STORE, pre_scheduled=True)
     job = PR.run_job(STORE, args, vid, dur)
     job["url"] = f"/files/{out.name}"
     return {"job": True, "encoder": E.best()}

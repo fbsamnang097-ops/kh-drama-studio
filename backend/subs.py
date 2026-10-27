@@ -86,10 +86,27 @@ def schedule_voice_clips(clips, audio_store=None, duration_probe=None):
                     tempo, trim = factor, target
         output_duration = trim if trim is not None else source_duration
         item = {**clip, "start": scheduled_start, "_tempo": tempo, "_trim": trim,
-                "_original_index": original_index}
+                "_output_duration": output_duration, "_original_index": original_index}
         scheduled.append(item)
         previous_end = scheduled_start + output_duration
     return scheduled
+
+
+def schedule_voice_segments(segments, audio_store=None, duration_probe=None):
+    """Return scheduled voice clips and a subtitle list using their exact output times."""
+    clips = [
+        {**segment, "_segment_index": index}
+        for index, segment in enumerate(segments)
+        if segment.get("audio")
+    ]
+    scheduled = schedule_voice_clips(clips, audio_store, duration_probe)
+    aligned = [dict(segment) for segment in segments]
+    for clip in scheduled:
+        index = clip["_segment_index"]
+        start = clip["start"]
+        aligned[index]["start"] = start
+        aligned[index]["end"] = start + clip["_output_duration"]
+    return scheduled, aligned
 
 
 def _voice_filter(input_index, clip, output_index):
@@ -100,7 +117,7 @@ def _voice_filter(input_index, clip, output_index):
     return f"{chain},adelay={int(clip['start'] * 1000)}:all=1[a{output_index}]"
 
 
-def export_args(src, clips, subs_txt, out, q, bgm=None, layers=(), boxes=(), W=0, H=0, dur=0.0, venc=None, audio_store=None):
+def export_args(src, clips, subs_txt, out, q, bgm=None, layers=(), boxes=(), W=0, H=0, dur=0.0, venc=None, audio_store=None, pre_scheduled=False):
     """Export តែមួយ pass: សំឡេងខ្មែរ + BGM + Subtitle + Logo/Sponsor/Overlay/Text + Blur
 
     q["hd"] = re-encode ច្បាស់; q["tw"],q["th"] = ទំហំ upscale (ស្គាល់ស្វ័យប្រវត្តិពីប្រភព)
@@ -108,7 +125,8 @@ def export_args(src, clips, subs_txt, out, q, bgm=None, layers=(), boxes=(), W=0
     boxes  = blur box របស់ BlurPanel;  W,H = ទំហំវីដេអូដើម (px)
     venc   = encoder args ពី `encode.video_args()` (hardware បើមាន); None = libx264
     """
-    clips = schedule_voice_clips(clips, audio_store)
+    if not pre_scheduled:
+        clips = schedule_voice_clips(clips, audio_store)
     inputs, flt = ["-i", src], []
     for i, s in enumerate(clips):
         inputs += ["-i", pathlib.Path(s["audio"]).name]
@@ -171,8 +189,9 @@ def _keep(store, name, data, pos):
     ext = pathlib.Path(name).suffix.lower()
     if ext not in AUD: return None
     m = re.match(r"\s*(\d+)", pathlib.Path(name).stem)           # លេខនៅដើមឈ្មោះ file = លំដាប់ segment
-    fn = f"imp_{uuid.uuid4().hex[:10]}{ext}"; (pathlib.Path(store) / fn).write_bytes(data)
-    return {"index": int(m.group(1)) if m else pos, "url": f"/files/{fn}"}
+    fn = f"imp_{uuid.uuid4().hex[:10]}{ext}"; path = pathlib.Path(store) / fn; path.write_bytes(data)
+    return {"index": int(m.group(1)) if m else pos, "url": f"/files/{fn}",
+            "audio_duration": _probe_audio_duration(path)}
 
 def import_audio(store, files):
     """files: [(filename, bytes)] — file សំឡេង ឬ ZIP → [{index,url}]"""
