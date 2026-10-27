@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { scheduleVoices } from "./voiceSchedule.js";
+import { scheduleVoices, sourceOffsetAt, voiceAtTime } from "./voiceSchedule.js";
 
 test("voice, subtitle, and character keep the same segment after a delayed clip", () => {
   const rows = [
@@ -14,6 +14,13 @@ test("voice, subtitle, and character keep the same segment after a delayed clip"
   assert.equal(segments[1].start, 3);
   assert.equal(segments[1].km, "ប្រយោគទីពីរ");
   assert.equal(segments[1].char, "女主");
+});
+
+test("does not play dialogue while paused and seeks audio to the matching subtitle offset", () => {
+  const item = { start: 4, end: 8, tempo: 1.1, segment: { id: 7, audio: "line.mp3" } };
+  assert.equal(voiceAtTime([item], 6, false), null);
+  assert.equal(voiceAtTime([item], 6, true), item);
+  assert.equal(sourceOffsetAt(item, 6), 2.2);
 });
 
 test("gently speeds up a clip only when it fits within the safe limit", () => {

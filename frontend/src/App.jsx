@@ -5,7 +5,7 @@ import CharacterPanel from "./CharacterPanel.jsx";
 import { LAYERS, initLayers, resetLayers } from "./layers.js";
 import { renderTextPng } from "./textPix.js";
 import { useUpdate, UpdateBanner, UpdatePill, UpdateBox } from "./UpdateNotice.jsx";
-import { scheduleVoices } from "./voiceSchedule.js";
+import { scheduleVoices, sourceOffsetAt, voiceAtTime } from "./voiceSchedule.js";
 
 const api = async (path, body, isForm) => {
   const r = await fetch(path, body ? { method: "POST", ...(isForm ? { body } : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }) } : undefined);
@@ -129,6 +129,7 @@ export default function App() {
   useEffect(() => { api("/api/settings").then((s) => setTier(s.tier || "standard")).catch(() => {}); }, [showSet]);
   const switchTier = async (k) => { const prev = tier; setTier(k); try { await api("/api/settings", { tier: k }); } catch (e) { setTier(prev); alert(e.message); } };
   const vref = useRef(); const played = useRef(null); const voiceAudio = useRef(null);
+  const syncFrameId = useRef(null); const syncFrameMode = useRef(null); const onTimeRef = useRef(null);
   const voicePlan = useMemo(() => scheduleVoices(segs), [segs]);
   const timelineSegs = voicePlan.segments;
   const stopVoiceAudio = useCallback(() => {
@@ -140,22 +141,30 @@ export default function App() {
     played.current = null;
   }, []);
   const pauseVoiceAudio = useCallback(() => { voiceAudio.current?.pause(); }, []);
-  const resumeVoiceAudio = useCallback(() => {
-    if (voiceAudio.current?.paused) voiceAudio.current.play().catch((e) => console.error("Khmer audio failed:", e));
-  }, []);
   const playVoiceAudio = useCallback((item) => {
     const player = new Audio(item.segment.audio);
+    player.preload = "auto";
     player.playbackRate = item.tempo;
     player.preservesPitch = true;
     player.onended = () => { if (voiceAudio.current === player) voiceAudio.current = null; };
+    const startAtVideoClock = () => {
+      if (voiceAudio.current !== player) return;
+      const video = vref.current;
+      if (!video || video.paused || video.seeking) return;
+      const offset = sourceOffsetAt(item, video.currentTime);
+      if (Number.isFinite(player.duration) && player.duration > 0) {
+        player.currentTime = Math.min(offset, Math.max(0, player.duration - 0.02));
+      }
+      player.play().catch((e) => {
+        console.error("Khmer audio failed:", item.segment.audio, e);
+        if (voiceAudio.current === player) voiceAudio.current = null;
+      });
+    };
     voiceAudio.current = player;
-    player.play().catch((e) => {
-      console.error("Khmer audio failed:", item.segment.audio, e);
-      if (voiceAudio.current === player) voiceAudio.current = null;
-    });
+    player.addEventListener("loadedmetadata", startAtVideoClock, { once: true });
+    if (player.readyState >= 1) startAtVideoClock();
+    else player.load();
   }, []);
-  useEffect(() => () => stopVoiceAudio(), [stopVoiceAudio]);
-
   // វីដេអូថ្មី → បញ្ឈប់សំឡេងចាស់ និងលុប layer/blur ចាស់ (រក្សាទីតាំង/ទំហំដែលបានកំណត់)
   useEffect(() => {
     stopVoiceAudio();
@@ -168,15 +177,68 @@ export default function App() {
 
   // Sync វីដេអូ ↔ Subtitle ↔ សំឡេង លើ effective schedule តែមួយ
   const onTime = () => {
-    const now = vref.current.currentTime; setT(now);
-    const item = voicePlan.scheduled.find((entry) => now >= entry.start && now < entry.end);
+    const video = vref.current;
+    if (!video) return;
+    const now = video.currentTime;
+    setT((previous) => (Math.abs(previous - now) >= 0.08 ? now : previous));
+    const item = voiceAtTime(voicePlan.scheduled, now, !video.paused && !video.seeking);
     const key = item ? `${item.segment.id}:${item.segment.audio}` : null;
+
+    // Seeking/paused preview may update the caption, but must never start dialogue audio.
+    if (video.paused || video.seeking) {
+      voiceAudio.current?.pause();
+      return;
+    }
     if (played.current !== key) {
       stopVoiceAudio();
       played.current = key;
       if (item) playVoiceAudio(item);
+      return;
+    }
+    if (item && voiceAudio.current) {
+      const player = voiceAudio.current;
+      const expectedSourceTime = sourceOffsetAt(item, now);
+      // Correct drift before resuming, especially when a seek happened while the preview was paused.
+      if (Math.abs(player.currentTime - expectedSourceTime) > 0.35 && player.readyState >= 1) {
+        player.currentTime = Math.min(expectedSourceTime, Math.max(0, player.duration - 0.02));
+      }
+      if (player.paused) player.play().catch((e) => console.error("Khmer audio failed:", e));
     }
   };
+  onTimeRef.current = onTime;
+  const stopVideoClock = useCallback(() => {
+    if (syncFrameId.current === null) return;
+    const video = vref.current;
+    if (syncFrameMode.current === "video") video?.cancelVideoFrameCallback?.(syncFrameId.current);
+    else cancelAnimationFrame(syncFrameId.current);
+    syncFrameId.current = null;
+    syncFrameMode.current = null;
+  }, []);
+  const startVideoClock = useCallback(() => {
+    const video = vref.current;
+    if (!video || video.paused || video.ended || syncFrameId.current !== null) return;
+    const tick = () => {
+      syncFrameId.current = null;
+      syncFrameMode.current = null;
+      if (vref.current !== video || video.paused || video.ended) return;
+      onTimeRef.current?.();
+      if (typeof video.requestVideoFrameCallback === "function") {
+        syncFrameMode.current = "video";
+        syncFrameId.current = video.requestVideoFrameCallback(tick);
+      } else {
+        syncFrameMode.current = "animation";
+        syncFrameId.current = requestAnimationFrame(tick);
+      }
+    };
+    if (typeof video.requestVideoFrameCallback === "function") {
+      syncFrameMode.current = "video";
+      syncFrameId.current = video.requestVideoFrameCallback(tick);
+    } else {
+      syncFrameMode.current = "animation";
+      syncFrameId.current = requestAnimationFrame(tick);
+    }
+  }, []);
+  useEffect(() => () => { stopVideoClock(); stopVoiceAudio(); }, [stopVideoClock, stopVoiceAudio]);
   const active = timelineSegs.reduce((current, segment) => {
     if (t < segment.start || t >= segment.end) return current;
     return !current || segment.start > current.start ? segment : current;
@@ -620,7 +682,7 @@ export default function App() {
       {/* ១. Video Preview */}
       <section className="pnl pnl-pink row-span-2 p-3 pt-4 flex flex-col gap-2 min-h-0 overflow-y-auto">
         {video ? <div className="relative mx-auto bg-black rounded-xl overflow-hidden shrink-0" style={{ aspectRatio: ar, width: `min(100%, calc((100vh - 230px) * ${ar}))`, containerType: "inline-size" }}>
-          <video ref={vref} src={video.url} className="w-full h-full object-cover" onTimeUpdate={onTime} onPlay={resumeVoiceAudio} onPause={pauseVoiceAudio} onSeeking={stopVoiceAudio} onEnded={stopVoiceAudio} playsInline muted
+          <video ref={vref} src={video.url} className="w-full h-full object-cover" onTimeUpdate={onTime} onPlay={() => { onTime(); startVideoClock(); }} onPlaying={() => { onTime(); startVideoClock(); }} onWaiting={() => { stopVideoClock(); pauseVoiceAudio(); }} onPause={() => { stopVideoClock(); pauseVoiceAudio(); }} onSeeking={stopVoiceAudio} onSeeked={onTime} onEnded={() => { stopVideoClock(); stopVoiceAudio(); }} playsInline muted
             onLoadedMetadata={(e) => { setDur(e.target.duration); if (e.target.videoWidth) { setAr(e.target.videoWidth / e.target.videoHeight); setVs({ w: e.target.videoWidth, h: e.target.videoHeight }); } }} />
           {showSub && active?.km && <div className="absolute bottom-[7%] inset-x-[4%] text-center font-semibold leading-snug [text-shadow:0_0_6px_#000,0_0_6px_#000,0_0_3px_#000]" style={{ fontSize: "clamp(12px,5cqw,30px)" }}>{active.km}</div>}
         </div>
