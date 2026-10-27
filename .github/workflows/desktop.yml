@@ -9,12 +9,14 @@ on:
         description: "ជ្រើស platform សម្រាប់ build ដោយដៃ"
         type: choice
         required: true
-        default: mac-arm
         options:
-          - mac-arm
+          - all
           - windows
           - mac-intel
-          - all
+      publish:
+        description: "ផ្សព្វផ្សាយ installer ដែលបាន build ទៅ GitHub Release សម្រាប់ VERSION"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -27,8 +29,6 @@ jobs:
       matrix:
         include:
           - { name: windows,   os: windows-latest }
-          # ប្រើ runner ARM64 macOS 15 ដែលបានសាកល្បង build installer រួច។
-          - { name: mac-arm,   os: macos-15 }
           - { name: mac-intel, os: macos-15-intel }
     runs-on: ${{ matrix.os }}
     defaults:
@@ -136,25 +136,38 @@ jobs:
 
   release:
     needs: build
-    # Never publish a partial release: every matrix platform must build and upload successfully.
-    if: ${{ success() && startsWith(github.ref, 'refs/tags/v') }}
+    # ផ្សព្វផ្សាយក្រោយពេល installer Windows និង Mac Intel build ជោគជ័យទាំងពីរ។
+    if: ${{ success() && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish)) }}
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            V="$(tr -d ' \r\n' < VERSION)"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with:
           path: out
           merge-multiple: true
-      - name: Verify complete cross-platform release assets
+      - name: ផ្ទៀងផ្ទាត់ installer Windows និង Mac Intel
         shell: bash
         run: |
-          V="${GITHUB_REF_NAME#v}"
+          V="${{ steps.version.outputs.version }}"
           test -s "out/KH-Drama-Studio-v${V}.exe"
           test -s "out/KH-Drama-Studio-v${V}-x64.dmg"
-          test -s "out/KH-Drama-Studio-v${V}-arm64.dmg"
           test -s out/latest.yml
-          printf 'RELEASE_ASSETS_OK v%s: Windows + Mac Intel + Mac ARM\n' "$V"
+          printf 'RELEASE_ASSETS_OK v%s: Windows + Mac Intel\n' "$V"
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: KH Drama Studio v${{ steps.version.outputs.version }}
+          make_latest: true
           files: out/*
           generate_release_notes: false
           body: |
@@ -164,4 +177,4 @@ jobs:
             - ពេលបកប្រែ ឬប្តូរតួអង្គ សំឡេង TTS ចាស់នឹងត្រូវដកចេញ ដើម្បីអាចបង្កើតសំឡេងថ្មីត្រឹមត្រូវ។
 
             ## ទាញយក
-            [ទំព័រទាញយកសម្រាប់ Windows និង Mac](https://github.com/fbsamnang097-ops/kh-drama-studio/releases/tag/${{ github.ref_name }})
+            [ទំព័រទាញយកសម្រាប់ Windows និង Mac Intel](https://github.com/fbsamnang097-ops/kh-drama-studio/releases/tag/v${{ steps.version.outputs.version }})
