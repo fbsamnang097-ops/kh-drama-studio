@@ -4,6 +4,15 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish the built installers to the GitHub release for the version in VERSION"
+        type: boolean
+        default: false
+      require_mac_arm:
+        description: "Block the release until the Apple Silicon (arm64) installer is built"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -14,11 +23,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: windows,   os: windows-latest }
-          # ប្រើ runner ARM64 macOS 15 ដែលបានសាកល្បង build installer រួច។
-          - { name: mac-arm,   os: macos-15 }
-          - { name: mac-intel, os: macos-15-intel }
+          - { name: windows,   os: windows-latest,  optional: false }
+          - { name: mac-intel, os: macos-15-intel,  optional: false }
+          # Runner macOS ARM64 របស់ GitHub ខ្វះ capacity៖ job ដែលរង់ចាំ runner មិនបាន
+          # ត្រូវបានលុបចោលក្រោយ ~១៥ នាទី ("The job was not acquired by Runner of type
+          # hosted")។ សាកល្បង image ARM64 គ្រប់ម៉ូដែលក្នុងពេលតែមួយ ដើម្បីឱ្យមួយណាមួយ
+          # អាចចាប់ build បាន ហើយកុំឱ្យ pool ដែលគ្មាន runner បរាជ័យ run ទាំងមូល។
+          - { name: mac-arm,    os: macos-15, optional: true }
+          - { name: mac-arm-14, os: macos-14, optional: true }
+          - { name: mac-arm-26, os: macos-26, optional: true }
     runs-on: ${{ matrix.os }}
+    # optional: true សម្រាប់តែជើង ARM៖ Windows និង Mac Intel ត្រូវតែជោគជ័យ។
+    continue-on-error: ${{ matrix.optional }}
     defaults:
       run:
         shell: bash
@@ -124,25 +140,60 @@ jobs:
 
   release:
     needs: build
-    # Never publish a partial release: every matrix platform must build and upload successfully.
-    if: ${{ success() && startsWith(github.ref, 'refs/tags/v') }}
+    # មិនដែល publish release មិនគ្រប់គ្រាន់ទេ៖ គ្រប់ platform ត្រូវតែ build និង upload ជោគជ័យ។
+    # always() ពីព្រោះជើង ARM ដែលរង់ចាំ runner មិនបាន ត្រូវ GitHub cancel ទោះជា optional ក៏ដោយ។
+    if: ${{ always() && !cancelled() && (startsWith(github.ref, 'refs/tags/v') || inputs.publish) }}
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF#refs/tags/v}" != "$GITHUB_REF" ]; then
+            V="${GITHUB_REF#refs/tags/v}"
+          else
+            V="$(tr -d ' \r\n' < VERSION)"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
       - uses: actions/download-artifact@v4
         with:
           path: out
           merge-multiple: true
+
       - name: Verify complete cross-platform release assets
         shell: bash
         run: |
-          V="${GITHUB_REF_NAME#v}"
-          test -s "out/KH-Drama-Studio-v${V}.exe"
-          test -s "out/KH-Drama-Studio-v${V}-x64.dmg"
-          test -s "out/KH-Drama-Studio-v${V}-arm64.dmg"
-          test -s out/latest.yml
-          printf 'RELEASE_ASSETS_OK v%s: Windows + Mac Intel + Mac ARM\n' "$V"
+          set -euo pipefail
+          V="${{ steps.version.outputs.version }}"
+          test -s "out/KH-Drama-Studio-v${V}.exe" || { echo "::error::Windows installer missing"; exit 1; }
+          test -s "out/KH-Drama-Studio-v${V}-x64.dmg" || { echo "::error::Mac Intel installer missing"; exit 1; }
+          test -s out/latest.yml || { echo "::error::latest.yml missing"; exit 1; }
+          if [ -s "out/KH-Drama-Studio-v${V}-arm64.dmg" ]; then
+            printf 'RELEASE_ASSETS_OK v%s: Windows + Mac Intel + Mac ARM\n' "$V"
+            exit 0
+          fi
+          if [ "${{ inputs.require_mac_arm }}" = "false" ]; then
+            echo "::warning::Apple Silicon installer missing - publishing Windows + Mac Intel only."
+            {
+              echo "### គ្មាន installer Apple Silicon (arm64)"
+              echo "គ្រប់ image ARM64 (macos-15, macos-14, macos-26) មិនអាចចាប់ runner បានទេ (GitHub capacity)។"
+              echo "កំណែ x64 ដំណើរការលើ Apple Silicon តាមរយៈ Rosetta។ សូម re-run workflow នេះនៅពេល runner មាន។"
+            } >> "$GITHUB_STEP_SUMMARY"
+            printf 'RELEASE_ASSETS_PARTIAL v%s: Windows + Mac Intel\n' "$V"
+            exit 0
+          fi
+          echo "::error::Apple Silicon (arm64) installer missing: no macOS arm64 runner was available. Re-run this workflow, or run it with require_mac_arm=false to publish Windows + Mac Intel only."
+          exit 1
+
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: KH Drama Studio v${{ steps.version.outputs.version }}
+          make_latest: true
           files: out/*
           generate_release_notes: false
           body: |
@@ -152,4 +203,5 @@ jobs:
             - ពេលបកប្រែ ឬប្តូរតួអង្គ សំឡេង TTS ចាស់នឹងត្រូវដកចេញ ដើម្បីអាចបង្កើតសំឡេងថ្មីត្រឹមត្រូវ។
 
             ## ទាញយក
-            [ទំព័រទាញយកសម្រាប់ Windows និង Mac](https://github.com/fbsamnang097-ops/kh-drama-studio/releases/tag/${{ github.ref_name }})
+            [ទំព័រទាញយកសម្រាប់ Windows និង Mac](https://github.com/fbsamnang097-ops/kh-drama-studio/releases/tag/v${{ steps.version.outputs.version }})
+            ${{ inputs.require_mac_arm == 'false' && '> ចំណាំ៖ កំណែនេះមិនទាន់មាន installer Apple Silicon (arm64) ទេ ព្រោះ GitHub មិនមាន macOS ARM runner ទំនេរ។ សូមប្រើកំណែ x64 (ដំណើរការលើ Apple Silicon តាមរយៈ Rosetta)។' || '' }}
