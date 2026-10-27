@@ -7,10 +7,11 @@ from backend import providers as P
 
 
 class FakeResponse:
-    def __init__(self, payload, status_code=200):
+    def __init__(self, payload, status_code=200, headers=None):
         self.payload = payload
         self.status_code = status_code
         self.is_error = status_code >= 400
+        self.headers = headers or {}
         self.text = str(payload)
 
     def json(self):
@@ -38,6 +39,30 @@ class GeminiInteractionsApiTest(unittest.TestCase):
         self.assertEqual(kwargs["json"]["input"], "translate this")
         self.assertEqual(kwargs["json"]["response_format"]["mime_type"], "application/json")
         self.assertEqual(P.model_for(cfg, "translate", "gemini"), "gemini-3.8-flash")
+
+    @patch("backend.providers.time.sleep")
+    @patch("backend.providers.httpx.post")
+    def test_gemini_retries_temporary_503_then_succeeds(self, post, sleep):
+        success = FakeResponse({
+            "status": "completed",
+            "steps": [{"type": "model_output", "content": [
+                {"type": "text", "text": "[{\"km\":\"សួស្តី\",\"char\":\"旁白\"}]"}
+            ]}],
+        })
+        post.side_effect = [FakeResponse({"error": {"message": "busy"}}, 503, {"Retry-After": "2"}), success]
+        result = P._chat({"key_gemini": "test-secret"}, "gemini", "translate this")
+        self.assertIn("សួស្តី", result)
+        self.assertEqual(post.call_count, 2)
+        sleep.assert_called_once_with(2.0)
+
+    @patch("backend.providers.time.sleep")
+    @patch("backend.providers.httpx.post")
+    def test_gemini_reports_persistent_503_as_temporary_outage(self, post, sleep):
+        post.return_value = FakeResponse({"error": {"message": "high demand"}}, 503)
+        with self.assertRaisesRegex(RuntimeError, "Gemini API HTTP 503:.*សូមរង់ចាំ"):
+            P._chat({"key_gemini": "test-secret"}, "gemini", "translate this")
+        self.assertEqual(post.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
 
     @patch("backend.providers.httpx.post")
     def test_gemini_http_error_includes_provider_message(self, post):

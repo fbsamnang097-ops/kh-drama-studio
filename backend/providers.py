@@ -298,15 +298,28 @@ def _chat(cfg, p, msg):
                 "char": {"type": "string", "enum": ["男主", "女主", "老男", "老女", "小孩", "小孩男", "旁白"]},
             }, "required": ["km", "char"]},
         }
-        r = httpx.post(url, headers={"x-goog-api-key": key, "Content-Type": "application/json"},
-            json={"model": model, "input": msg,
-                  "response_format": {"type": "text", "mime_type": "application/json", "schema": schema}},
-            timeout=300)
+        request = {"model": model, "input": msg,
+                   "response_format": {"type": "text", "mime_type": "application/json", "schema": schema}}
+        r = None
+        for attempt in range(3):
+            r = httpx.post(url, headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+                json=request, timeout=300)
+            if r.status_code != 503 or attempt == 2:
+                break
+            try:
+                delay = float(r.headers.get("Retry-After", 2 ** (attempt + 1)))
+            except (TypeError, ValueError):
+                delay = 2 ** (attempt + 1)
+            time.sleep(min(max(delay, 1), 10))
         if r.is_error:
             try:
                 detail = r.json().get("error", {}).get("message") or r.text
             except Exception:
                 detail = r.text
+            if r.status_code == 503:
+                raise RuntimeError("Gemini API HTTP 503: សេវា Gemini កំពុងមានអ្នកប្រើច្រើន។ "
+                                   "កម្មវិធីបានសាកម្តងទៀត ៣ ដងហើយ។ សូមរង់ចាំបន្តិច ហើយសាកឡើងវិញ; "
+                                   "នេះជាបញ្ហាបណ្ដោះអាសន្នរបស់សេវា មិនមែនបញ្ហា API key ឬ billing ទេ។")
             raise RuntimeError(f"Gemini API HTTP {r.status_code}: {str(detail)[:500]}")
         data = r.json()
         texts = []
