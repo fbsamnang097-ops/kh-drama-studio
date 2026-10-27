@@ -23,6 +23,16 @@ test("does not play dialogue while paused and seeks audio to the matching subtit
   assert.equal(sourceOffsetAt(item, 6), 2.2);
 });
 
+test("waits for real audio duration before scheduling legacy clips", () => {
+  const row = { id: 3, start: 1, end: 2, km: "ឃ្លា", char: "男主", audio: "/legacy.mp3" };
+  const unknown = scheduleVoices([row]).scheduled;
+  assert.equal(unknown[0].durationKnown, false);
+  assert.equal(voiceAtTime(unknown, 1.1), null);
+  const measured = scheduleVoices([{ ...row, audio_duration: 2 }]).scheduled;
+  assert.equal(measured[0].durationKnown, true);
+  assert.equal(voiceAtTime(measured, 1.1), measured[0]);
+});
+
 test("rejects a late TTS response after its translation or character assignment changed", () => {
   const request = { text: "អត្ថបទចាស់", char: "男主", charId: "cast-1", castVoice: "voice-a" };
   const current = { km: "អត្ថបទថ្មី", char: "女主", char_id: "cast-1" };
