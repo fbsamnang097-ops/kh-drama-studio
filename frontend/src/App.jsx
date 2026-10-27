@@ -89,10 +89,11 @@ export default function App() {
   const [castMsg, setCastMsg] = useState("");   // សារសង្ខេបពី auto-scan តួអង្គ
   const [cast, setCast] = useState([]);         // តួអង្គដែលបានវិភាគ (សំឡេង+អត្ថបទ)
   const [voiceCat, setVoiceCat] = useState({ voices: [], ages: {}, genders: {}, limitations: [] });
+  const [applyAllVoice, setApplyAllVoice] = useState("");
   const [autoDetect, setAutoDetect] = useState(() => { try { return localStorage.getItem("khAutoCast") !== "0"; } catch { return true; } });
   const [showCast, setShowCast] = useState(false);
   useEffect(() => { try { localStorage.setItem("khAutoCast", autoDetect ? "1" : "0"); } catch {} }, [autoDetect]);
-  useEffect(() => { if (!showCast) return; api("/api/characters").then(setVoiceCat).catch(() => {}); }, [showCast]);
+  useEffect(() => { api("/api/characters").then(setVoiceCat).catch(() => {}); }, []);
   // ផ្ទុកការចាត់សំឡេងចាស់ពី SQLite (ក្រោយ reload app ឬ restart backend — Test 9)
   useEffect(() => {
     if (!video?.id) return;
@@ -241,8 +242,28 @@ export default function App() {
     try {
       const r = await api("/api/characters/assign", { id: video.id, project: video.id, overrides: { [cid]: vid } });
       setCast(r.characters || []);
+      if (cast.find((c) => c.id === cid)?.voice !== vid) {
+        setSegs((cur) => cur.map((s) => s.char_id === cid ? { ...s, audio: "", status: s.km ? "Pending" : s.status } : s));
+      }
     } catch (e) { alert(e.message); }
   };
+  const applyVoiceToAll = runWith("កំពុងអនុវត្តសំឡេងទៅគ្រប់តួអង្គ...", async () => {
+    if (!video?.id) throw new Error("សូម Upload វីដេអូ ឬបើកគម្រោងជាមុន");
+    if (!applyAllVoice) throw new Error("សូមជ្រើសសំឡេងជាមុន");
+    const targets = cast.filter((c) => c.id);
+    if (!targets.length) throw new Error("មិនទាន់មានតួអង្គ — សូមស្កេនតួអង្គជាមុន");
+    const changedIds = new Set(targets.filter((c) => c.voice !== applyAllVoice).map((c) => c.id));
+    const hasOldAudio = segs.some((s) => changedIds.has(s.char_id) && s.audio);
+    const voiceLabel = voiceCat.voices.find((v) => v.id === applyAllVoice)?.label || applyAllVoice;
+    if (hasOldAudio && !confirm(`អនុវត្ត “${voiceLabel}” ទៅតួអង្គទាំង ${targets.length} នាក់? សំឡេងដែលបានបង្កើតពីមុនសម្រាប់តួអង្គដែលប្តូរ នឹងត្រូវដកចេញ។ ចុច Generate Khmer Audio ដើម្បីបង្កើតសំឡេងថ្មី។`)) return;
+    const overrides = Object.fromEntries(targets.map((c) => [c.id, applyAllVoice]));
+    const r = await api("/api/characters/assign", { id: video.id, project: video.id, overrides });
+    setCast(r.characters || []);
+    setSegs((cur) => cur.map((s) => changedIds.has(s.char_id)
+      ? { ...s, audio: "", status: s.km ? "Pending" : s.status }
+      : s));
+    setCastMsg(`✅ បានអនុវត្តសំឡេង ${voiceLabel} ទៅតួអង្គទាំង ${targets.length} នាក់។ បង្កើតសំឡេងឡើងវិញដោយចុច Generate Khmer Audio។`);
+  });
   const previewVoice = async (vid) => {
     const r = await api("/api/voice_preview", { voice: vid });
     await new Audio(r.url).play().catch(() => {});
@@ -540,7 +561,20 @@ export default function App() {
       {/* ២. Subtitle Editor */}
       <section className="pnl pnl-violet p-3 pt-4 flex flex-col min-h-0 min-w-0">
         <div className="flex gap-2 mb-2 flex-wrap items-center">
-          <B c="violet" onClick={addText}>+ Add Text</B><B c="red" onClick={del}>Delete</B><B c="amber" onClick={findReplace}>Find &amp; Replace</B><B c="pink" onClick={scanChars}>🔍 ស្កេនតួអង្គ</B><B c="cyan" onClick={fixLines} title="កាត់បន្ទាត់វែង (ឧ. 5.3 → 41.0) តាមសំឡេងពិត">✂️ កាត់វេនវែង</B><B c="violet" onClick={() => setShowCast((v) => !v)}>🎭 តួអង្គ ({cast.length})</B>
+          <B c="violet" onClick={addText}>+ Add Text</B><B c="red" onClick={del}>Delete</B><B c="amber" onClick={findReplace}>Find &amp; Replace</B>
+          <div className="flex items-center gap-1 rounded-lg border border-amber-400/40 px-1.5 py-1" title="ជ្រើសសំឡេង រួចអនុវត្តទៅតួអង្គទាំងអស់">
+            <select className="ghost !py-0.5 !px-1 text-xs max-w-36" aria-label="ជ្រើសសំឡេងសម្រាប់តួអង្គទាំងអស់"
+              value={applyAllVoice} disabled={!!busy || !voiceCat.voices.length}
+              onChange={(e) => setApplyAllVoice(e.target.value)}>
+              <option value="">ជ្រើសសំឡេង...</option>
+              {voiceCat.voices.map((v) => <option key={v.id} value={v.id}>{v.label} — {voiceCat.genders[v.gender] || v.gender}</option>)}
+            </select>
+            <button className="btn b-amber text-xs !py-0.5 disabled:opacity-40"
+              disabled={!!busy || !video?.id || !cast.length || !applyAllVoice}
+              title={!video?.id ? "សូម Upload វីដេអូ/បើកគម្រោង និងស្កេនតួអង្គជាមុន" : !cast.length ? "សូមស្កេនតួអង្គជាមុន" : "អនុវត្តសំឡេងដែលបានជ្រើសទៅតួអង្គទាំងអស់"}
+              onClick={applyVoiceToAll}>អនុវត្តទាំងអស់</button>
+          </div>
+          <B c="pink" onClick={scanChars}>🔍 ស្កេនតួអង្គ</B><B c="cyan" onClick={fixLines} title="កាត់បន្ទាត់វែង (ឧ. 5.3 → 41.0) តាមសំឡេងពិត">✂️ កាត់វេនវែង</B><B c="violet" onClick={() => setShowCast((v) => !v)}>🎭 តួអង្គ ({cast.length})</B>
           {!expProg && <span className="text-xs opacity-70">{busy}</span>}
           {castMsg && <span className="text-xs" style={{ color: "#6ee7b7" }}>{castMsg}</span>}
 

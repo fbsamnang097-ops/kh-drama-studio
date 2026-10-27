@@ -147,8 +147,9 @@ jobs:
           generate_release_notes: false
           body: |
             ## អ្វីថ្មី
-            - រៀប Settings ឱ្យនៅជួរតែមួយជាមួយ Standard និង Premium លើទូរសព្ទ ដោយការពារការធ្លាក់ចុះទៅជួរបន្ទាប់។
-            - បន្ថែម UI mount smoke test និងបង្កើត installer សម្រាប់ Windows និង Mac ទាំងពីរប្រភេទ។
+            - បន្ថែមជ្រើសសំឡេង ហើយចុច «អនុវត្តទាំងអស់» នៅខាងស្តាំ Find & Replace ដើម្បីដាក់សំឡេងដែលបានជ្រើសទៅ Character ទាំងអស់។
+            - ពេលប្តូរសំឡេង ប្រព័ន្ធលុបសំឡេងចាស់សម្រាប់តួអង្គដែលបានប្តូរ ដើម្បីឱ្យបង្កើតសំឡេងថ្មីបានត្រឹមត្រូវ។
+            - រក្សាការរៀប Settings ជាមួយ Standard/Premium លើទូរសព្ទ និងបង្កើត installer សម្រាប់ Windows និង Mac ទាំងពីរប្រភេទ។
 
             ## ទាញយក
             [ទំព័រទាញយកសម្រាប់ Windows និង Mac](https://github.com/fbsamnang097-ops/kh-drama-studio/releases/tag/${{ github.ref_name }})

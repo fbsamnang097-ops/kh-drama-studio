@@ -221,6 +221,16 @@ def set_segment_voice(con, pid, idx, cid, voice_id, audio=None):
     con.commit()
 
 
+def clear_character_segment_audio(con, pid, character_ids):
+    """លុបសំឡេង segment ចាស់ ពេល voice របស់តួអង្គត្រូវបានប្តូរ។"""
+    ids = list(dict.fromkeys(character_ids or []))
+    if not ids:
+        return
+    placeholders = ",".join("?" for _ in ids)
+    con.execute(f"UPDATE segments SET audio=NULL WHERE pid=? AND cid IN ({placeholders})", [pid, *ids])
+    con.commit()
+
+
 def delete_project(con, pid):
     con.execute("DELETE FROM characters WHERE pid=?", (pid,))
     con.execute("DELETE FROM segments WHERE pid=?", (pid,))

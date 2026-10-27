@@ -61,7 +61,7 @@ export default function CharacterPanel({ cast = [], cat = {}, onDetect, onAutoAs
                     {!c.manual && <span title="ស្វ័យប្រវត្តិ — តាមភេទ/អាយុពីសំឡេង" style={{ color: "#34d399" }}> ⚙</span>}
                     {c.conflict && <span title="អត្ថបទផ្ទុយនឹងសំឡេង" style={{ color: "#fb7185" }}> ⚠</span>}
                     {c.corrected && <span title={`កែព័ត៌មានតួអង្គ (${c.corrected})`} style={{ color: "#38bdf8" }}> ✎</span>}
-                    {c.voice_mismatch && <span title="សំឡេងដែលជ្រើសដោយដៃ ខុសភេទនឹងការវិភាគ" style={{ color: "#f97316" }}> ⚑</span>}
+                    {(c.voice_mismatch || (["male", "female"].includes(c.gender) && voices.some((v) => v.id === c.voice && v.gender && v.gender !== "unknown" && v.gender !== c.gender))) && <span title="សំឡេងដែលជ្រើសដោយដៃ ខុសភេទនឹងការវិភាគ — ការចាត់សំឡេង Apply All គឺជាការជ្រើសដោយដៃ" style={{ color: "#f97316" }}> ⚑</span>}
                   </td>
                   <td className="p-1">{GEN_ICON[c.gender] || "?"} {genders[c.gender] || c.gender}</td>
                   <td className="p-1">{AGE_ICON[c.age] || ""} {ages[c.age] || c.age}</td>
