@@ -691,7 +691,7 @@ function Settings({ onClose, tier }) {
   useEffect(() => { api("/api/settings").then(setD); api("/api/catalog").then(setCat); api("/api/tiers").then((r) => setTiers(r.tiers)); }, []);
   if (!cat || !tiers) return null;
   const inp = (k, label, ph, type = "text") => <label className="block text-xs mt-2">{label}<input type={type} placeholder={ph} className="w-full ghost mt-1 text-sm" value={d[k] || ""} onChange={(e) => setD({ ...d, [k]: e.target.value })} /></label>;
-  const roles = [["translate", "សេវាបកប្រែ (ចិន→ខ្មែរ)"], ["stt", "ទាញអត្ថបទចិនពីសំឡេង (STT)"], ["tts", "សំឡេងខ្មែរ (TTS)"]];
+  const roles = [["translate", "បកប្រែចិន → ខ្មែរ"], ["stt", "សំឡេង → អត្ថបទចិន (STT)"], ["tts", "អត្ថបទ → សំឡេងខ្មែរ (TTS)"]];
   const save = async () => { await api("/api/settings", d); onClose(); };
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
