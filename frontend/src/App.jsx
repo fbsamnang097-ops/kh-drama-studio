@@ -82,6 +82,8 @@ const summarize = (rows) => {   // "👩 ស្រី 12 · 👨 ប្រុស
 export default function App() {
   const [video, setVideo] = useState(null);           // {id,url}
   const [segs, setSegs] = useState([]);               // {id,start,end,zh,km,char,status,audio}
+  const audioDurationCache = useRef(new Map());
+  const audioDurationProbes = useRef(new Set());
   const [sel, setSel] = useState(new Set());
   const [t, setT] = useState(0);
   const [dur, setDur] = useState(60);
@@ -96,6 +98,33 @@ export default function App() {
   const [showCast, setShowCast] = useState(false);
   useEffect(() => { try { localStorage.setItem("khAutoCast", autoDetect ? "1" : "0"); } catch {} }, [autoDetect]);
   useEffect(() => { api("/api/characters").then(setVoiceCat).catch(() => {}); }, []);
+  // Measure legacy/imported clips that predate audio_duration metadata; match backend ffprobe scheduling.
+  useEffect(() => {
+    for (const segment of segs) {
+      const url = segment.audio;
+      if (!url || Number(segment.audio_duration) > 0) continue;
+      const cached = audioDurationCache.current.get(url);
+      if (cached) {
+        setSegs((current) => current.map((row) => row.id === segment.id && row.audio === url && !(Number(row.audio_duration) > 0)
+          ? { ...row, audio_duration: cached } : row));
+        continue;
+      }
+      if (audioDurationProbes.current.has(url)) continue;
+      audioDurationProbes.current.add(url);
+      const probe = new Audio();
+      probe.preload = "metadata";
+      probe.onloadedmetadata = () => {
+        audioDurationProbes.current.delete(url);
+        if (!Number.isFinite(probe.duration) || probe.duration <= 0) return;
+        audioDurationCache.current.set(url, probe.duration);
+        setSegs((current) => current.map((row) => row.id === segment.id && row.audio === url && !(Number(row.audio_duration) > 0)
+          ? { ...row, audio_duration: probe.duration } : row));
+      };
+      probe.onerror = () => audioDurationProbes.current.delete(url);
+      probe.src = url;
+      probe.load();
+    }
+  }, [segs]);
   // ផ្ទុកការចាត់សំឡេងចាស់ពី SQLite (ក្រោយ reload app ឬ restart backend — Test 9)
   useEffect(() => {
     if (!video?.id) return;
