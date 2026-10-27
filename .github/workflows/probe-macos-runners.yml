@@ -4,6 +4,8 @@ name: Probe macOS runners
 
 on:
   workflow_dispatch:
+  push:
+    branches: ["arena/**"]
 
 permissions:
   contents: read
