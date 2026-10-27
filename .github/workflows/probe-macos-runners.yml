@@ -1,0 +1,32 @@
+# Temporary diagnostic: find which macOS runner labels can actually acquire a
+# hosted runner right now. Deleted once the real workflow is fixed.
+name: Probe macOS runners
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-15
+          - macos-14
+          - macos-13
+          - macos-26
+          - macos-latest
+          - macos-15-intel
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - name: Report runner
+        run: |
+          echo "label=${{ matrix.os }}"
+          echo "arch=$(uname -m)"
+          echo "os=$(sw_vers -productVersion 2>/dev/null || true)"
+          echo "runner=$RUNNER_NAME"
