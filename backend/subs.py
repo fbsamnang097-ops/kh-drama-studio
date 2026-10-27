@@ -1,6 +1,6 @@
 """Subtitle burn-in ដោយមិនប្រើ libass: browser គូរអក្សរជារូប PNG → ffmpeg ដាក់ពីលើវីដេអូ (overlay)។
 ដំណើរការលើ ffmpeg គ្រប់ build (មិនត្រូវការ libass / freetype)"""
-import base64, io, json, pathlib, re, uuid, zipfile
+import base64, io, json, pathlib, re, subprocess, uuid, zipfile
 
 try:
     from . import graph as G
@@ -42,7 +42,65 @@ def _mix(n, bgm_idx, pad=False):
     flt.append("[v1][duck]amix=inputs=2:duration=first:normalize=0[aout]")
     return flt
 
-def export_args(src, clips, subs_txt, out, q, bgm=None, layers=(), boxes=(), W=0, H=0, dur=0.0, venc=None):
+MAX_VOICE_SPEED = 1.15
+
+
+def _probe_audio_duration(path):
+    """រករយៈពេល audio ពិត ដើម្បីកុំឱ្យ clip មុនលេងជាន់ clip បន្ទាប់។"""
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        duration = float(r.stdout.strip()) if r.returncode == 0 else 0.0
+        return duration if duration > 0 else None
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+
+
+def schedule_voice_clips(clips, audio_store=None, duration_probe=None):
+    """រៀប clip សំឡេងមិនឱ្យជាន់គ្នា; បង្កើនល្បឿនតិចៗប៉ុណ្ណោះពេលអាចសម។
+
+    បើការកាត់បន្ថយរយៈពេលត្រូវការល្បឿនលើស MAX_VOICE_SPEED នោះរក្សាសំឡេងធម្មជាតិ
+    ហើយរំកិល clip បន្ទាប់ទៅក្រោយ ដើម្បីមិនកាត់ពាក្យ និងមិនលាយសំឡេងជាន់គ្នា។
+    """
+    probe = duration_probe or _probe_audio_duration
+    ordered = sorted(enumerate(clips), key=lambda row: (float(row[1].get("start", 0) or 0), row[0]))
+    scheduled, previous_end = [], 0.0
+    for pos, (original_index, clip) in enumerate(ordered):
+        start = max(0.0, float(clip.get("start", 0) or 0))
+        audio_path = pathlib.Path(audio_store) / pathlib.Path(clip["audio"]).name if audio_store else pathlib.Path(clip["audio"])
+        source_duration = probe(audio_path)
+        if not source_duration:
+            source_duration = max(0.0, float(clip.get("end", start) or start) - start)
+        scheduled_start = max(start, previous_end)
+        tempo, trim = 1.0, None
+        if pos + 1 < len(ordered):
+            next_start = max(0.0, float(ordered[pos + 1][1].get("start", 0) or 0))
+            available = next_start - scheduled_start
+            target = available - 0.03  # ចន្លោះតូចការពារការជាន់គ្នាពី rounding របស់ codec
+            if target > 0 and source_duration > target:
+                factor = source_duration / target
+                if factor <= MAX_VOICE_SPEED:
+                    tempo, trim = factor, target
+        output_duration = trim if trim is not None else source_duration
+        item = {**clip, "start": scheduled_start, "_tempo": tempo, "_trim": trim,
+                "_original_index": original_index}
+        scheduled.append(item)
+        previous_end = scheduled_start + output_duration
+    return scheduled
+
+
+def _voice_filter(input_index, clip, output_index):
+    """Filter clip មួយទៅ timestamp របស់វា និងអនុវត្ត tempo/trim តាម schedule។"""
+    chain = f"[{input_index}:a]asetpts=PTS-STARTPTS"
+    if clip.get("_tempo", 1.0) > 1.001:
+        chain += f",atempo={clip['_tempo']:.6f},atrim=duration={clip['_trim']:.3f}"
+    return f"{chain},adelay={int(clip['start'] * 1000)}:all=1[a{output_index}]"
+
+
+def export_args(src, clips, subs_txt, out, q, bgm=None, layers=(), boxes=(), W=0, H=0, dur=0.0, venc=None, audio_store=None):
     """Export តែមួយ pass: សំឡេងខ្មែរ + BGM + Subtitle + Logo/Sponsor/Overlay/Text + Blur
 
     q["hd"] = re-encode ច្បាស់; q["tw"],q["th"] = ទំហំ upscale (ស្គាល់ស្វ័យប្រវត្តិពីប្រភព)
@@ -50,10 +108,11 @@ def export_args(src, clips, subs_txt, out, q, bgm=None, layers=(), boxes=(), W=0
     boxes  = blur box របស់ BlurPanel;  W,H = ទំហំវីដេអូដើម (px)
     venc   = encoder args ពី `encode.video_args()` (hardware បើមាន); None = libx264
     """
+    clips = schedule_voice_clips(clips, audio_store)
     inputs, flt = ["-i", src], []
     for i, s in enumerate(clips):
         inputs += ["-i", pathlib.Path(s["audio"]).name]
-        flt.append(f"[{i+1}:a]adelay={int(s['start']*1000)}:all=1[a{i}]")
+        flt.append(_voice_filter(i + 1, s, i))
     nxt, bgm_idx = len(clips) + 1, None
     if bgm:
         inputs += ["-stream_loop", "-1", "-i", pathlib.Path(bgm).name]; bgm_idx = nxt; nxt += 1
@@ -86,13 +145,14 @@ def export_args(src, clips, subs_txt, out, q, bgm=None, layers=(), boxes=(), W=0
 # ---------- Export / Import TTS ----------
 AUD = {".mp3", ".wav", ".m4a", ".ogg", ".aac", ".flac"}
 
-def audio_args(clips, out, q, bgm=None):
+def audio_args(clips, out, q, bgm=None, audio_store=None):
     """លាយក្លីបសំឡេងខ្មែរទាំងអស់ តាមពេលវេលា → ឯកសារ MP3 មួយ
     bgm = ឈ្មោះ file ភ្លេង (ជម្រើស) → លាយជាមួយសំឡេងខ្មែរ ដោយបន្ថយភ្លេងពេលតួនិយាយ"""
+    clips = schedule_voice_clips(clips, audio_store)
     inputs, flt = [], []
     for i, s in enumerate(clips):
         inputs += ["-i", pathlib.Path(s["audio"]).name]
-        flt.append(f"[{i}:a]adelay={int(s['start']*1000)}:all=1[a{i}]")
+        flt.append(_voice_filter(i, s, i))
     bgm_idx = None
     if bgm:
         inputs += ["-stream_loop", "-1", "-i", pathlib.Path(bgm).name]; bgm_idx = len(clips)

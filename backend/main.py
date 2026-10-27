@@ -438,7 +438,8 @@ def export(b: Ex):
     bgm = _bgm(b.bgm)
     W, H = G.probe(STORE, src.name)
     dur = G.duration(STORE, src.name) or 0.0
-    args = SB.export_args(src.name, clips, track, out.name, q, bgm, layers, boxes, W, H, dur, E.video_args(q["preset"], q["crf"]))
+    args = SB.export_args(src.name, clips, track, out.name, q, bgm, layers, boxes, W, H, dur,
+                          E.video_args(q["preset"], q["crf"]), audio_store=STORE)
     job = PR.run_job(STORE, args, vid, dur)
     job["url"] = f"/files/{out.name}"
     return {"job": True, "encoder": E.best()}
@@ -471,7 +472,7 @@ def tts_export(b: TE):
         out = STORE / f"khmer_tts_{tag}.zip"; SB.build_zip(STORE, clips, out)
     else:
         out = STORE / f"khmer_voice_{tag}.mp3"; q = P.TIERS[P.tier(P.load())]["export"]
-        guard(lambda: ff(*SB.audio_args(clips, out.name, q, _bgm(b.bgm))))
+        guard(lambda: ff(*SB.audio_args(clips, out.name, q, _bgm(b.bgm), audio_store=STORE)))
     return {"url": f"/files/{out.name}"}
 
 @app.post("/api/tts_import")

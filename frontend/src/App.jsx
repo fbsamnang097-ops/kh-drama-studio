@@ -123,13 +123,46 @@ export default function App() {
   const [tier, setTier] = useState("standard");        // standard | premium
   useEffect(() => { api("/api/settings").then((s) => setTier(s.tier || "standard")).catch(() => {}); }, [showSet]);
   const switchTier = async (k) => { const prev = tier; setTier(k); try { await api("/api/settings", { tier: k }); } catch (e) { setTier(prev); alert(e.message); } };
-  const vref = useRef(); const played = useRef(null);
+  const vref = useRef(); const played = useRef(null); const voiceAudio = useRef(null); const voiceQueue = useRef([]);
+  const stopVoiceAudio = useCallback(() => {
+    if (voiceAudio.current) {
+      voiceAudio.current.pause();
+      voiceAudio.current.currentTime = 0;
+      voiceAudio.current = null;
+    }
+    voiceQueue.current = [];
+    played.current = null;
+  }, []);
+  const pauseVoiceAudio = useCallback(() => { voiceAudio.current?.pause(); }, []);
+  const resumeVoiceAudio = useCallback(() => {
+    if (voiceAudio.current?.paused) voiceAudio.current.play().catch((e) => console.error("Khmer audio failed:", e));
+  }, []);
+  const playVoiceAudio = useCallback((audio) => {
+    const start = (url) => {
+      const player = new Audio(url);
+      voiceAudio.current = player;
+      const advance = () => {
+        if (voiceAudio.current !== player) return;
+        voiceAudio.current = null;
+        const next = voiceQueue.current.shift();
+        if (next) start(next.url);
+      };
+      player.onended = advance;
+      player.play().catch((e) => {
+        console.error("Khmer audio failed:", url, e);
+        advance();
+      });
+    };
+    start(audio);
+  }, []);
+  useEffect(() => () => stopVoiceAudio(), [stopVoiceAudio]);
 
-  // វីដេអូថ្មី → លុប file layer ចាស់ និង blur box ចាស់ (រក្សាទីតាំង/ទំហំដែលបានកំណត់)
+  // វីដេអូថ្មី → បញ្ឈប់សំឡេងចាស់ និងលុប layer/blur ចាស់ (រក្សាទីតាំង/ទំហំដែលបានកំណត់)
   useEffect(() => {
+    stopVoiceAudio();
     setLayers((s) => resetLayers(s));
     setBlurBoxes([]);
-  }, [video?.id]);
+  }, [video?.id, stopVoiceAudio]);
 
   const patch = (id, p) => setSegs((s) => s.map((x) => (x.id === id ? { ...x, ...p } : x)));
   const run = (label, fn) => async () => { setBusy(label); try { await fn(); window.khOk && window.khOk(label); } catch (e) { alert(e.message); } setBusy(""); };
@@ -138,8 +171,14 @@ export default function App() {
   const onTime = () => {
     const now = vref.current.currentTime; setT(now);
     const a = segs.find((s) => now >= s.start && now < s.end);
-    if (a?.audio && played.current !== a.id) { played.current = a.id; new Audio(a.audio).play().catch((e) => console.error("Khmer audio failed:", a.audio, e)); }
-    if (!a) played.current = null;
+    const key = a ? `${a.id}:${a.audio || ""}` : null;
+    if (played.current !== key) {
+      played.current = key;
+      if (a?.audio) {
+        if (voiceAudio.current) voiceQueue.current.push({ key, url: a.audio });
+        else playVoiceAudio(a.audio);
+      }
+    }
   };
   const active = segs.find((s) => t >= s.start && t < s.end);
 
@@ -544,7 +583,7 @@ export default function App() {
       {/* ១. Video Preview */}
       <section className="pnl pnl-pink row-span-2 p-3 pt-4 flex flex-col gap-2 min-h-0 overflow-y-auto">
         {video ? <div className="relative mx-auto bg-black rounded-xl overflow-hidden shrink-0" style={{ aspectRatio: ar, width: `min(100%, calc((100vh - 230px) * ${ar}))`, containerType: "inline-size" }}>
-          <video ref={vref} src={video.url} className="w-full h-full object-cover" onTimeUpdate={onTime} playsInline muted
+          <video ref={vref} src={video.url} className="w-full h-full object-cover" onTimeUpdate={onTime} onPlay={resumeVoiceAudio} onPause={pauseVoiceAudio} onSeeking={stopVoiceAudio} onEnded={stopVoiceAudio} playsInline muted
             onLoadedMetadata={(e) => { setDur(e.target.duration); if (e.target.videoWidth) { setAr(e.target.videoWidth / e.target.videoHeight); setVs({ w: e.target.videoWidth, h: e.target.videoHeight }); } }} />
           {showSub && active?.km && <div className="absolute bottom-[7%] inset-x-[4%] text-center font-semibold leading-snug [text-shadow:0_0_6px_#000,0_0_6px_#000,0_0_3px_#000]" style={{ fontSize: "clamp(12px,5cqw,30px)" }}>{active.km}</div>}
         </div>
