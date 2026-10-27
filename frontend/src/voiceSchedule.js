@@ -8,6 +8,13 @@ export function sourceOffsetAt(item, currentTime) {
   return Math.max(0, (currentTime - item.start) * item.tempo);
 }
 
+export function voiceRequestMatches(segment, request, currentVoice = "") {
+  return segment.km === request.text &&
+    (segment.char || "") === (request.char || "") &&
+    (segment.char_id || "") === (request.charId || "") &&
+    (currentVoice || "") === (request.castVoice || "");
+}
+
 export function scheduleVoices(rows) {
   const ordered = rows.map((segment, index) => ({ segment, index }))
     .filter(({ segment }) => segment.audio)

@@ -5,7 +5,7 @@ import CharacterPanel from "./CharacterPanel.jsx";
 import { LAYERS, initLayers, resetLayers } from "./layers.js";
 import { renderTextPng } from "./textPix.js";
 import { useUpdate, UpdateBanner, UpdatePill, UpdateBox } from "./UpdateNotice.jsx";
-import { scheduleVoices, sourceOffsetAt, voiceAtTime } from "./voiceSchedule.js";
+import { scheduleVoices, sourceOffsetAt, voiceAtTime, voiceRequestMatches } from "./voiceSchedule.js";
 
 const api = async (path, body, isForm) => {
   const r = await fetch(path, body ? { method: "POST", ...(isForm ? { body } : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }) } : undefined);
@@ -89,6 +89,7 @@ export default function App() {
   const [busy, setBusy] = useState("");
   const [castMsg, setCastMsg] = useState("");   // សារសង្ខេបពី auto-scan តួអង្គ
   const [cast, setCast] = useState([]);         // តួអង្គដែលបានវិភាគ (សំឡេង+អត្ថបទ)
+  const castRef = useRef(cast); castRef.current = cast;
   const [voiceCat, setVoiceCat] = useState({ voices: [], ages: {}, genders: {}, limitations: [] });
   const [applyAllVoice, setApplyAllVoice] = useState("");
   const [autoDetect, setAutoDetect] = useState(() => { try { return localStorage.getItem("khAutoCast") !== "0"; } catch { return true; } });
@@ -447,11 +448,30 @@ export default function App() {
     let failed = 0;
     for (let i = 0; i < segs.length; i++) {
       const s = segs[i];
-      if (!s.km) continue; patch(s.id, { status: "Generating" });
+      if (!s.km) continue;
+      const request = { text: s.km, char: s.char || "", charId: s.char_id || "",
+        castVoice: castRef.current.find((c) => c.id === s.char_id)?.voice || "" };
+      patch(s.id, { status: "Generating" });
       let ok = false;
       for (let t = 0; t < 3 && !ok; t++) {
-        try { const r = await api("/api/tts", { text: s.km, char: voiceOf(s.char), char_id: s.char_id || "", video: video?.id || "", idx: i, speed: 0 }); patch(s.id, { audio: r.url, audio_duration: r.audio_duration, status: "Done" }); ok = true; }
-        catch (e) { console.error("TTS failed:", s.km, e); await new Promise((res) => setTimeout(res, 1000 * (t + 1))); }
+        try {
+          const r = await api("/api/tts", {
+            text: request.text, char: voiceOf(request.char), char_id: request.charId,
+            video: video?.id || "", idx: i, speed: 0,
+          });
+          const currentVoice = castRef.current.find((c) => c.id === request.charId)?.voice || "";
+          setSegs((current) => current.map((segment) => {
+            if (segment.id !== s.id) return segment;
+            if (!voiceRequestMatches(segment, request, currentVoice)) {
+              return { ...segment, status: segment.audio ? "Done" : "Pending" };
+            }
+            return { ...segment, audio: r.url, audio_duration: r.audio_duration, voice: r.voice, status: "Done" };
+          }));
+          ok = true;
+        } catch (e) {
+          console.error("TTS failed:", request.text, e);
+          await new Promise((res) => setTimeout(res, 1000 * (t + 1)));
+        }
       }
       if (!ok) { patch(s.id, { status: "Error" }); failed++; }
     }
@@ -752,7 +772,7 @@ export default function App() {
                 <td><input className="w-14" value={s.start.toFixed(1)} onChange={(e) => patch(s.id, { start: +e.target.value || 0 })} /></td>
                 <td><input className="w-14" value={s.end.toFixed(1)} onChange={(e) => patch(s.id, { end: +e.target.value || 0 })} /></td>
                 <td><textarea rows={2} className="w-full resize-none leading-snug" value={s.zh} onChange={(e) => patch(s.id, { zh: e.target.value })} /></td>
-                <td><textarea rows={2} className="w-full resize-none leading-snug" value={s.km} onChange={(e) => patch(s.id, { km: e.target.value, status: "Pending", audio: "", audio_duration: undefined })} /></td>
+                <td><textarea rows={2} className="w-full resize-none leading-snug disabled:opacity-60" value={s.km} disabled={!!busy} onChange={(e) => patch(s.id, { km: e.target.value, status: "Pending", audio: "", audio_duration: undefined })} /></td>
                 <td className="whitespace-nowrap">
                   {(() => {
                     const ch = cast.find((c) => c.id === s.char_id);
