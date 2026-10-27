@@ -1,6 +1,6 @@
 {
   "name": "kh-drama-studio",
-  "version": "1.0.40",
+  "version": "1.0.41",
   "description": "KH Drama Studio desktop app",
   "author": "Mr. Samnang",
   "main": "electron/main.js",

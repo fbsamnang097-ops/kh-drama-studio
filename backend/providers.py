@@ -277,6 +277,31 @@ PROMPT = ("Translate each Chinese line to natural spoken Khmer for drama dubbing
           'of {"km":"...","char":"..."} in the same order and length.\n')
 def _chat(cfg, p, msg):
     model = model_for(cfg, "translate", p); key = _key(cfg, "translate", p)
+    if p == "gemini":
+        # Use Gemini's native REST API: avoids compatibility-route 404s and keeps the key out of the URL.
+        model = model.removeprefix("models/")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        r = httpx.post(url, headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+            json={"contents": [{"role": "user", "parts": [{"text": msg}]}],
+                  "generationConfig": {"responseMimeType": "application/json", "maxOutputTokens": 8192}},
+            timeout=300)
+        if r.is_error:
+            try:
+                detail = r.json().get("error", {}).get("message") or r.text
+            except Exception:
+                detail = r.text
+            raise RuntimeError(f"Gemini API HTTP {r.status_code}: {str(detail)[:500]}")
+        data = r.json()
+        candidates = data.get("candidates") or []
+        if not candidates:
+            feedback = data.get("promptFeedback") or {}
+            raise RuntimeError("Gemini API returned no candidates: " + json.dumps(feedback, ensure_ascii=False)[:500])
+        parts = candidates[0].get("content", {}).get("parts", [])
+        text = "".join(part.get("text", "") for part in parts
+                       if part.get("text") and not part.get("thought"))
+        if not text.strip():
+            raise RuntimeError("Gemini API returned an empty translation response")
+        return text
     if p == "anthropic":
         r = httpx.post("https://api.anthropic.com/v1/messages", headers={"x-api-key": key, "anthropic-version": "2023-06-01"},
             json={"model": model, "max_tokens": 8000, "messages": [{"role": "user", "content": msg}]}, timeout=300)
