@@ -15,8 +15,8 @@ jobs:
       matrix:
         include:
           - { name: windows,   os: windows-latest }
-          # ប្រើ ARM64 runner macOS 26 ជំនួស macOS 15 ដែលពេញសមត្ថភាពជាបន្តបន្ទាប់។
-          - { name: mac-arm,   os: macos-26 }
+          # ប្រើ runner ARM64 macOS 15 ដែលបានសាកល្បង build installer រួច។
+          - { name: mac-arm,   os: macos-15 }
           - { name: mac-intel, os: macos-15-intel }
     runs-on: ${{ matrix.os }}
     defaults:
